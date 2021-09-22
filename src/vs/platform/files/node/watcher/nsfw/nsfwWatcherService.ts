@@ -49,7 +49,7 @@ export class NsfwWatcherService extends Disposable implements IWatcherService {
 	private readonly _onDidLogMessage = this._register(new Emitter<ILogMessage>());
 	readonly onDidLogMessage = this._onDidLogMessage.event;
 
-	private readonly watchers = new Map<string, IWatcher>();
+	protected readonly watchers = new Map<string, IWatcher>();
 
 	private verboseLogging = false;
 	private enospcErrorLogged = false;
@@ -281,6 +281,8 @@ export class NsfwWatcherService extends Disposable implements IWatcherService {
 				try {
 					const realpath = realpathSync(request.path);
 					if (realpath === request.path) {
+						this.warn(`ignoring a path for watching who's parent is already watched: ${request.path}`);
+
 						continue; // path is not a symbolic link or similar
 					}
 				} catch (error) {
