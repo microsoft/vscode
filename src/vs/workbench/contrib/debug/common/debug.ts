@@ -3,29 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { URI as uri } from 'vs/base/common/uri';
-import severity from 'vs/base/common/severity';
+import { IAction } from 'vs/base/common/actions';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import severity from 'vs/base/common/severity';
+import { URI as uri } from 'vs/base/common/uri';
+import { IPosition, Position } from 'vs/editor/common/core/position';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ITextModel as EditorIModel } from 'vs/editor/common/model';
-import { IEditorPane } from 'vs/workbench/common/editor';
-import { Position, IPosition } from 'vs/editor/common/core/position';
-import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
-import { Range, IRange } from 'vs/editor/common/core/range';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { TaskIdentifier } from 'vs/workbench/contrib/tasks/common/tasks';
+import * as nls from 'vs/nls';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/api/common/extHostTypes';
-import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
-import { IAction } from 'vs/base/common/actions';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryEndpoint } from 'vs/platform/telemetry/common/telemetry';
+import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/api/common/extHostTypes';
+import { IEditorPane } from 'vs/workbench/common/editor';
+import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
+import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
+import { TaskIdentifier } from 'vs/workbench/contrib/tasks/common/tasks';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export const VIEWLET_ID = 'workbench.view.debug';
 
@@ -58,6 +59,7 @@ export const CONTEXT_CALLSTACK_SESSION_IS_ATTACH = new RawContextKey<boolean>('c
 export const CONTEXT_CALLSTACK_ITEM_STOPPED = new RawContextKey<boolean>('callStackItemStopped', false, { type: 'boolean', description: nls.localize('callStackItemStopped', "True when the focused item in the CALL STACK is stopped. Used internaly for inline menus in the CALL STACK view.") });
 export const CONTEXT_CALLSTACK_SESSION_HAS_ONE_THREAD = new RawContextKey<boolean>('callStackSessionHasOneThread', false, { type: 'boolean', description: nls.localize('callStackSessionHasOneThread', "True when the focused session in the CALL STACK view has exactly one thread. Used internally for inline menus in the CALL STACK view.") });
 export const CONTEXT_WATCH_ITEM_TYPE = new RawContextKey<string>('watchItemType', undefined, { type: 'string', description: nls.localize('watchItemType', "Represents the item type of the focused element in the WATCH view. For example: 'expression', 'variable'") });
+export const CONTEXT_CAN_VIEW_MEMORY = new RawContextKey<boolean>('canViewMemory', undefined, { type: 'boolean', description: nls.localize('canViewMemory', "Indicates whether the item in the view has an associated memory refrence.") });
 export const CONTEXT_BREAKPOINT_ITEM_TYPE = new RawContextKey<string>('breakpointItemType', undefined, { type: 'string', description: nls.localize('breakpointItemType', "Represents the item type of the focused element in the BREAKPOINTS view. For example: 'breakpoint', 'exceptionBreakppint', 'functionBreakpoint', 'dataBreakpoint'") });
 export const CONTEXT_BREAKPOINT_ACCESS_TYPE = new RawContextKey<string>('breakpointAccessType', undefined, { type: 'string', description: nls.localize('breakpointAccessType', "Represents the access type of the focused data breakpoint in the BREAKPOINTS view. For example: 'read', 'readWrite', 'write'") });
 export const CONTEXT_BREAKPOINT_SUPPORTS_CONDITION = new RawContextKey<boolean>('breakpointSupportsCondition', false, { type: 'boolean', description: nls.localize('breakpointSupportsCondition', "True when the focused breakpoint supports conditions.") });
@@ -204,6 +206,77 @@ export interface IDataBreakpointInfoResponse {
 	accessTypes?: DebugProtocol.DataBreakpointAccessType[];
 }
 
+export interface IMemoryInvalidationEvent {
+	fromOffset: number;
+	toOffset: number;
+}
+
+export const enum MemoryRangeType {
+	Valid,
+	Unreadable,
+	Error,
+}
+
+export interface IMemoryRange {
+	type: MemoryRangeType;
+	offset: number;
+	length: number;
+}
+
+export interface IValidMemoryRange extends IMemoryRange {
+	type: MemoryRangeType.Valid;
+	offset: number;
+	length: number;
+	data: VSBuffer
+}
+
+export interface IUnreadableMemoryRange extends IMemoryRange {
+	type: MemoryRangeType.Unreadable;
+}
+
+export interface IErrorMemoryRange extends IMemoryRange {
+	type: MemoryRangeType.Error;
+	error: string;
+}
+
+/**
+ * Union type of memory that can be returned from read(). Since a read request
+ * could encompass multiple previously-read ranges, multiple of these types
+ * are possible to return.
+ */
+export type MemoryRange = IValidMemoryRange | IUnreadableMemoryRange | IErrorMemoryRange;
+
+export const DEBUG_MEMORY_SCHEME = 'vscode-debug-memory';
+
+/**
+ * An IMemoryRegion corresponds to a contiguous range of memory referred to
+ * by a DAP `memoryReference`.
+ */
+export interface IMemoryRegion extends IDisposable {
+	/**
+	 * Event that fires when memory changes. Can be a result of memory events or
+	 * `write` requests.
+	 */
+	readonly onDidInvalidate: Event<IMemoryInvalidationEvent>;
+
+	/**
+	 * Whether writes are supported on this memory region.
+	 */
+	readonly writable: boolean;
+
+	/**
+	 * Requests memory ranges from the debug adapter. It returns a list of memory
+	 * ranges that overlap (but may exceed!) the given offset. Use the `offset`
+	 * and `length` of each range for display.
+	 */
+	read(fromOffset: number, toOffset: number): Promise<MemoryRange[]>;
+
+	/**
+	 * Writes memory to the debug adapter at the given offset.
+	 */
+	write(offset: number, data: VSBuffer): Promise<number>;
+}
+
 export interface IDebugSession extends ITreeElement {
 
 	readonly configuration: IConfig;
@@ -218,6 +291,8 @@ export interface IDebugSession extends ITreeElement {
 	readonly isSimpleUI: boolean;
 
 	setSubId(subId: string | undefined): void;
+
+	getMemory(memoryReference: string): IMemoryRegion;
 
 	setName(name: string): void;
 	readonly onDidChangeName: Event<string>;
@@ -256,6 +331,7 @@ export interface IDebugSession extends ITreeElement {
 	readonly onDidProgressStart: Event<DebugProtocol.ProgressStartEvent>;
 	readonly onDidProgressUpdate: Event<DebugProtocol.ProgressUpdateEvent>;
 	readonly onDidProgressEnd: Event<DebugProtocol.ProgressEndEvent>;
+	readonly onDidInvalidateMemory: Event<DebugProtocol.MemoryEvent>;
 
 	// DAP request
 
@@ -282,6 +358,8 @@ export interface IDebugSession extends ITreeElement {
 	customRequest(request: string, args: any): Promise<DebugProtocol.Response | undefined>;
 	cancel(progressId: string): Promise<DebugProtocol.CancelResponse | undefined>;
 	disassemble(memoryReference: string, offset: number, instructionOffset: number, instructionCount: number): Promise<DebugProtocol.DisassembledInstruction[] | undefined>;
+	readMemory(memoryReference: string, offset: number, count: number): Promise<DebugProtocol.ReadMemoryResponse | undefined>;
+	writeMemory(memoryReference: string, offset: number, data: string, allowPartial?: boolean): Promise<DebugProtocol.WriteMemoryResponse | undefined>;
 
 	restartFrame(frameId: number, threadId: number): Promise<void>;
 	next(threadId: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void>;
