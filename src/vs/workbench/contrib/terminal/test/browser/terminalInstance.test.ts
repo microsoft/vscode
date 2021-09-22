@@ -194,7 +194,7 @@ suite('Workbench - TerminalInstance', () => {
 			if (!isWindows) {
 				terminalLabelComputer = new TerminalLabelComputer(configHelper, createInstance({ capabilities, processName: 'process', workspaceFolder: 'folder', cwd: ROOT_2 }), mockContextService);
 				terminalLabelComputer.refreshLabel();
-				strictEqual(terminalLabelComputer.title, 'process');
+				strictEqual(terminalLabelComputer.title, 'process ~ root2');
 				strictEqual(terminalLabelComputer.description, ROOT_2);
 			}
 		});
