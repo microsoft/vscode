@@ -9,6 +9,7 @@ import * as Errors from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
+import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
 import { ITelemetryData, TelemetryConfiguration, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { ITelemetryAppender, NullAppender } from 'vs/platform/telemetry/common/telemetryUtils';
@@ -232,9 +233,21 @@ suite('TelemetryService', () => {
 			this.promises.push(p);
 			return p;
 		}
+
+		override publicLogError(errorEventName: string, data?: ITelemetryData): Promise<void> {
+			let p = super.publicLogError(errorEventName, data);
+			// publicLogError is called from the ctor and therefore promises can be undefined
+			this.promises = this.promises ?? [];
+			this.promises.push(p);
+			return p;
+		}
+
+		override publicLogError2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>): Promise<any> {
+			return this.publicLogError(eventName, data as ITelemetryData);
+		}
 	}
 
-	test.skip('Error events', sinonTestFn(async function (this: any) {
+	test('Error events', sinonTestFn(async function (this: any) {
 
 		let origErrorHandler = Errors.errorHandler.getUnexpectedErrorHandler();
 		Errors.setUnexpectedErrorHandler(() => { });
@@ -296,7 +309,7 @@ suite('TelemetryService', () => {
 	// 		}
 	// 	}));
 
-	test.skip('Handle global errors', sinonTestFn(async function (this: any) {
+	test('Handle global errors', sinonTestFn(async function (this: any) {
 		let errorStub = sinon.stub();
 		window.onerror = errorStub;
 
