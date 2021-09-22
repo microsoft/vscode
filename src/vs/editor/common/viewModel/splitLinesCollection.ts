@@ -661,7 +661,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 
 	private getModelStartPositionOfViewLine(viewLineInfo: ViewLineInfo): Position {
 		const line = this.lines[viewLineInfo.modelLineNumber - 1];
-		const minViewColumn = line.getViewLineMaxColumn(
+		const minViewColumn = line.getViewLineMinColumn(
 			this.model,
 			viewLineInfo.modelLineNumber,
 			viewLineInfo.modelLineWrappedLineIdx
