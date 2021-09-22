@@ -35,7 +35,9 @@ export function getSimpleEditorOptions(): IEditorOptions {
 		minimap: {
 			enabled: false
 		},
-		renderIndentGuides: false
+		guides: {
+			indentation: false
+		}
 	};
 }
 

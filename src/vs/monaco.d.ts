@@ -3218,16 +3218,6 @@ declare namespace monaco.editor {
 		 */
 		renderControlCharacters?: boolean;
 		/**
-		 * Enable rendering of indent guides.
-		 * Defaults to true.
-		 */
-		renderIndentGuides?: boolean;
-		/**
-		 * Enable highlighting of the active indent guide.
-		 * Defaults to true.
-		 */
-		highlightActiveIndentGuide?: boolean;
-		/**
 		 * Enable rendering of current line highlight.
 		 * Defaults to all.
 		 */
@@ -3900,9 +3890,19 @@ declare namespace monaco.editor {
 
 	export interface IGuidesOptions {
 		/**
-		 * Enable or disable bracket pair guides.
+		 * Enable rendering of bracket pair guides.
 		*/
 		bracketPairs?: boolean;
+		/**
+		 * Enable rendering of indent guides.
+		 * Defaults to true.
+		 */
+		indentation?: boolean;
+		/**
+		 * Enable highlighting of the active indent guide.
+		 * Defaults to true.
+		 */
+		highlightActiveIndentation?: boolean;
 	}
 
 	export type InternalGuidesOptions = Readonly<Required<IGuidesOptions>>;
@@ -4155,87 +4155,85 @@ declare namespace monaco.editor {
 		glyphMargin = 49,
 		gotoLocation = 50,
 		hideCursorInOverviewRuler = 51,
-		highlightActiveIndentGuide = 52,
-		hover = 53,
-		inDiffEditor = 54,
-		inlineSuggest = 55,
-		letterSpacing = 56,
-		lightbulb = 57,
-		lineDecorationsWidth = 58,
-		lineHeight = 59,
-		lineNumbers = 60,
-		lineNumbersMinChars = 61,
-		linkedEditing = 62,
-		links = 63,
-		matchBrackets = 64,
-		minimap = 65,
-		mouseStyle = 66,
-		mouseWheelScrollSensitivity = 67,
-		mouseWheelZoom = 68,
-		multiCursorMergeOverlapping = 69,
-		multiCursorModifier = 70,
-		multiCursorPaste = 71,
-		occurrencesHighlight = 72,
-		overviewRulerBorder = 73,
-		overviewRulerLanes = 74,
-		padding = 75,
-		parameterHints = 76,
-		peekWidgetDefaultFocus = 77,
-		definitionLinkOpensInPeek = 78,
-		quickSuggestions = 79,
-		quickSuggestionsDelay = 80,
-		readOnly = 81,
-		renameOnType = 82,
-		renderControlCharacters = 83,
-		renderIndentGuides = 84,
-		renderFinalNewline = 85,
-		renderLineHighlight = 86,
-		renderLineHighlightOnlyWhenFocus = 87,
-		renderValidationDecorations = 88,
-		renderWhitespace = 89,
-		revealHorizontalRightPadding = 90,
-		roundedSelection = 91,
-		rulers = 92,
-		scrollbar = 93,
-		scrollBeyondLastColumn = 94,
-		scrollBeyondLastLine = 95,
-		scrollPredominantAxis = 96,
-		selectionClipboard = 97,
-		selectionHighlight = 98,
-		selectOnLineNumbers = 99,
-		showFoldingControls = 100,
-		showUnused = 101,
-		snippetSuggestions = 102,
-		smartSelect = 103,
-		smoothScrolling = 104,
-		stickyTabStops = 105,
-		stopRenderingLineAfter = 106,
-		suggest = 107,
-		suggestFontSize = 108,
-		suggestLineHeight = 109,
-		suggestOnTriggerCharacters = 110,
-		suggestSelection = 111,
-		tabCompletion = 112,
-		tabIndex = 113,
-		unusualLineTerminators = 114,
-		useShadowDOM = 115,
-		useTabStops = 116,
-		wordSeparators = 117,
-		wordWrap = 118,
-		wordWrapBreakAfterCharacters = 119,
-		wordWrapBreakBeforeCharacters = 120,
-		wordWrapColumn = 121,
-		wordWrapOverride1 = 122,
-		wordWrapOverride2 = 123,
-		wrappingIndent = 124,
-		wrappingStrategy = 125,
-		showDeprecated = 126,
-		inlayHints = 127,
-		editorClassName = 128,
-		pixelRatio = 129,
-		tabFocusMode = 130,
-		layoutInfo = 131,
-		wrappingInfo = 132
+		hover = 52,
+		inDiffEditor = 53,
+		inlineSuggest = 54,
+		letterSpacing = 55,
+		lightbulb = 56,
+		lineDecorationsWidth = 57,
+		lineHeight = 58,
+		lineNumbers = 59,
+		lineNumbersMinChars = 60,
+		linkedEditing = 61,
+		links = 62,
+		matchBrackets = 63,
+		minimap = 64,
+		mouseStyle = 65,
+		mouseWheelScrollSensitivity = 66,
+		mouseWheelZoom = 67,
+		multiCursorMergeOverlapping = 68,
+		multiCursorModifier = 69,
+		multiCursorPaste = 70,
+		occurrencesHighlight = 71,
+		overviewRulerBorder = 72,
+		overviewRulerLanes = 73,
+		padding = 74,
+		parameterHints = 75,
+		peekWidgetDefaultFocus = 76,
+		definitionLinkOpensInPeek = 77,
+		quickSuggestions = 78,
+		quickSuggestionsDelay = 79,
+		readOnly = 80,
+		renameOnType = 81,
+		renderControlCharacters = 82,
+		renderFinalNewline = 83,
+		renderLineHighlight = 84,
+		renderLineHighlightOnlyWhenFocus = 85,
+		renderValidationDecorations = 86,
+		renderWhitespace = 87,
+		revealHorizontalRightPadding = 88,
+		roundedSelection = 89,
+		rulers = 90,
+		scrollbar = 91,
+		scrollBeyondLastColumn = 92,
+		scrollBeyondLastLine = 93,
+		scrollPredominantAxis = 94,
+		selectionClipboard = 95,
+		selectionHighlight = 96,
+		selectOnLineNumbers = 97,
+		showFoldingControls = 98,
+		showUnused = 99,
+		snippetSuggestions = 100,
+		smartSelect = 101,
+		smoothScrolling = 102,
+		stickyTabStops = 103,
+		stopRenderingLineAfter = 104,
+		suggest = 105,
+		suggestFontSize = 106,
+		suggestLineHeight = 107,
+		suggestOnTriggerCharacters = 108,
+		suggestSelection = 109,
+		tabCompletion = 110,
+		tabIndex = 111,
+		unusualLineTerminators = 112,
+		useShadowDOM = 113,
+		useTabStops = 114,
+		wordSeparators = 115,
+		wordWrap = 116,
+		wordWrapBreakAfterCharacters = 117,
+		wordWrapBreakBeforeCharacters = 118,
+		wordWrapColumn = 119,
+		wordWrapOverride1 = 120,
+		wordWrapOverride2 = 121,
+		wrappingIndent = 122,
+		wrappingStrategy = 123,
+		showDeprecated = 124,
+		inlayHints = 125,
+		editorClassName = 126,
+		pixelRatio = 127,
+		tabFocusMode = 128,
+		layoutInfo = 129,
+		wrappingInfo = 130
 	}
 	export const EditorOptions: {
 		acceptSuggestionOnCommitCharacter: IEditorOption<EditorOption.acceptSuggestionOnCommitCharacter, boolean>;
@@ -4291,7 +4289,6 @@ declare namespace monaco.editor {
 		glyphMargin: IEditorOption<EditorOption.glyphMargin, boolean>;
 		gotoLocation: IEditorOption<EditorOption.gotoLocation, GoToLocationOptions>;
 		hideCursorInOverviewRuler: IEditorOption<EditorOption.hideCursorInOverviewRuler, boolean>;
-		highlightActiveIndentGuide: IEditorOption<EditorOption.highlightActiveIndentGuide, boolean>;
 		hover: IEditorOption<EditorOption.hover, EditorHoverOptions>;
 		inDiffEditor: IEditorOption<EditorOption.inDiffEditor, boolean>;
 		letterSpacing: IEditorOption<EditorOption.letterSpacing, number>;
@@ -4322,7 +4319,6 @@ declare namespace monaco.editor {
 		readOnly: IEditorOption<EditorOption.readOnly, boolean>;
 		renameOnType: IEditorOption<EditorOption.renameOnType, boolean>;
 		renderControlCharacters: IEditorOption<EditorOption.renderControlCharacters, boolean>;
-		renderIndentGuides: IEditorOption<EditorOption.renderIndentGuides, boolean>;
 		renderFinalNewline: IEditorOption<EditorOption.renderFinalNewline, boolean>;
 		renderLineHighlight: IEditorOption<EditorOption.renderLineHighlight, 'all' | 'line' | 'none' | 'gutter'>;
 		renderLineHighlightOnlyWhenFocus: IEditorOption<EditorOption.renderLineHighlightOnlyWhenFocus, boolean>;

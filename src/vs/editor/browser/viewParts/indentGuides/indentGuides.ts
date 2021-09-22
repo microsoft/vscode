@@ -22,8 +22,6 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 	private _lineHeight: number;
 	private _spaceWidth: number;
 	private _renderResult: string[] | null;
-	private _indentGuidesEnabled: boolean;
-	private _activeIndentEnabled: boolean;
 	private _maxIndentLeft: number;
 	private _bracketPairGuideOptions: InternalGuidesOptions;
 
@@ -38,8 +36,6 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 
 		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._spaceWidth = fontInfo.spaceWidth;
-		this._indentGuidesEnabled = options.get(EditorOption.renderIndentGuides);
-		this._activeIndentEnabled = options.get(EditorOption.highlightActiveIndentGuide);
 		this._maxIndentLeft = wrappingInfo.wrappingColumn === -1 ? -1 : (wrappingInfo.wrappingColumn * fontInfo.typicalHalfwidthCharacterWidth);
 		this._bracketPairGuideOptions = options.get(EditorOption.guides);
 
@@ -63,8 +59,6 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 
 		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._spaceWidth = fontInfo.spaceWidth;
-		this._indentGuidesEnabled = options.get(EditorOption.renderIndentGuides);
-		this._activeIndentEnabled = options.get(EditorOption.highlightActiveIndentGuide);
 		this._maxIndentLeft = wrappingInfo.wrappingColumn === -1 ? -1 : (wrappingInfo.wrappingColumn * fontInfo.typicalHalfwidthCharacterWidth);
 		this._bracketPairGuideOptions = options.get(EditorOption.guides);
 
@@ -109,7 +103,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 	// --- end event handlers
 
 	public prepareRender(ctx: RenderingContext): void {
-		if (!this._indentGuidesEnabled && !this._bracketPairGuideOptions.bracketPairs) {
+		if (!this._bracketPairGuideOptions.indentation && !this._bracketPairGuideOptions.bracketPairs) {
 			this._renderResult = null;
 			return;
 		}
@@ -160,7 +154,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 			)
 			: null;
 
-		const indentGuides = this._indentGuidesEnabled
+		const indentGuides = this._bracketPairGuideOptions.indentation
 			? this._context.model.getLinesIndentGuides(
 				visibleStartLineNumber,
 				visibleEndLineNumber
@@ -170,7 +164,8 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		let activeIndentStartLineNumber = 0;
 		let activeIndentEndLineNumber = 0;
 		let activeIndentLevel = 0;
-		if (this._activeIndentEnabled && activeCursorPosition) {
+
+		if (this._bracketPairGuideOptions.highlightActiveIndentation && activeCursorPosition) {
 			const activeIndentInfo = this._context.model.getActiveIndentGuide(activeCursorPosition.lineNumber, visibleStartLineNumber, visibleEndLineNumber);
 			activeIndentStartLineNumber = activeIndentInfo.startLineNumber;
 			activeIndentEndLineNumber = activeIndentInfo.endLineNumber;

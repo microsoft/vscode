@@ -579,16 +579,6 @@ export interface IEditorOptions {
 	 */
 	renderControlCharacters?: boolean;
 	/**
-	 * Enable rendering of indent guides.
-	 * Defaults to true.
-	 */
-	renderIndentGuides?: boolean;
-	/**
-	 * Enable highlighting of the active indent guide.
-	 * Defaults to true.
-	 */
-	highlightActiveIndentGuide?: boolean;
-	/**
 	 * Enable rendering of current line highlight.
 	 * Defaults to all.
 	 */
@@ -3323,9 +3313,21 @@ class BracketPairColorization extends BaseEditorOption<EditorOption.bracketPairC
 
 export interface IGuidesOptions {
 	/**
-	 * Enable or disable bracket pair guides.
+	 * Enable rendering of bracket pair guides.
 	*/
 	bracketPairs?: boolean;
+
+	/**
+	 * Enable rendering of indent guides.
+	 * Defaults to true.
+	 */
+	indentation?: boolean;
+
+	/**
+	 * Enable highlighting of the active indent guide.
+	 * Defaults to true.
+	 */
+	highlightActiveIndentation?: boolean;
 }
 
 export type InternalGuidesOptions = Readonly<Required<IGuidesOptions>>;
@@ -3337,6 +3339,8 @@ class GuideOptions extends BaseEditorOption<EditorOption.guides, InternalGuidesO
 	constructor() {
 		const defaults: InternalGuidesOptions = {
 			bracketPairs: false,
+			indentation: true,
+			highlightActiveIndentation: true
 		};
 
 		super(
@@ -3346,6 +3350,16 @@ class GuideOptions extends BaseEditorOption<EditorOption.guides, InternalGuidesO
 					type: 'boolean',
 					default: defaults.bracketPairs,
 					description: nls.localize('editor.guides.bracketPairs', "Controls whether bracket pair guides are enabled or not.")
+				},
+				'editor.guides.indentation': {
+					type: 'boolean',
+					default: defaults.indentation,
+					description: nls.localize('editor.guides.indentation', "Controls whether the editor should render indent guides.")
+				},
+				'editor.guides.highlightActiveIndentation': {
+					type: 'boolean',
+					default: defaults.highlightActiveIndentation,
+					description: nls.localize('editor.guides.highlightActiveIndentation', "Controls whether the editor should highlight the active indent guide.")
 				}
 			}
 		);
@@ -3357,7 +3371,9 @@ class GuideOptions extends BaseEditorOption<EditorOption.guides, InternalGuidesO
 		}
 		const input = _input as IGuidesOptions;
 		return {
-			bracketPairs: boolean(input.bracketPairs, this.defaultValue.bracketPairs)
+			bracketPairs: boolean(input.bracketPairs, this.defaultValue.bracketPairs),
+			indentation: boolean(input.indentation, this.defaultValue.indentation),
+			highlightActiveIndentation: boolean(input.highlightActiveIndentation, this.defaultValue.highlightActiveIndentation),
 		};
 	}
 }
@@ -4042,7 +4058,6 @@ export const enum EditorOption {
 	glyphMargin,
 	gotoLocation,
 	hideCursorInOverviewRuler,
-	highlightActiveIndentGuide,
 	hover,
 	inDiffEditor,
 	inlineSuggest,
@@ -4074,7 +4089,6 @@ export const enum EditorOption {
 	readOnly,
 	renameOnType,
 	renderControlCharacters,
-	renderIndentGuides,
 	renderFinalNewline,
 	renderLineHighlight,
 	renderLineHighlightOnlyWhenFocus,
@@ -4410,10 +4424,6 @@ export const EditorOptions = {
 		EditorOption.hideCursorInOverviewRuler, 'hideCursorInOverviewRuler', false,
 		{ description: nls.localize('hideCursorInOverviewRuler', "Controls whether the cursor should be hidden in the overview ruler.") }
 	)),
-	highlightActiveIndentGuide: register(new EditorBooleanOption(
-		EditorOption.highlightActiveIndentGuide, 'highlightActiveIndentGuide', true,
-		{ description: nls.localize('highlightActiveIndentGuide', "Controls whether the editor should highlight the active indent guide.") }
-	)),
 	hover: register(new EditorHover()),
 	inDiffEditor: register(new EditorBooleanOption(
 		EditorOption.inDiffEditor, 'inDiffEditor', false
@@ -4541,10 +4551,6 @@ export const EditorOptions = {
 	renderControlCharacters: register(new EditorBooleanOption(
 		EditorOption.renderControlCharacters, 'renderControlCharacters', false,
 		{ description: nls.localize('renderControlCharacters', "Controls whether the editor should render control characters.") }
-	)),
-	renderIndentGuides: register(new EditorBooleanOption(
-		EditorOption.renderIndentGuides, 'renderIndentGuides', true,
-		{ description: nls.localize('renderIndentGuides', "Controls whether the editor should render indent guides.") }
 	)),
 	renderFinalNewline: register(new EditorBooleanOption(
 		EditorOption.renderFinalNewline, 'renderFinalNewline', true,
