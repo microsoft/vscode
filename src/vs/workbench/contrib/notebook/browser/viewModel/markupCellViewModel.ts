@@ -250,6 +250,10 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 		return false;
 	}
 
+	getDynamicHeight() {
+		return null;
+	}
+
 	getHeight(lineHeight: number) {
 		if (this._layoutInfo.layoutState === CellLayoutState.Uninitialized) {
 			return 100;

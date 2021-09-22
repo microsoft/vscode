@@ -9,6 +9,7 @@ import { IListOptions, IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { Event } from 'vs/base/common/event';
+import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ScrollEvent } from 'vs/base/common/scrollable';
 import { URI } from 'vs/base/common/uri';
@@ -97,8 +98,8 @@ export interface BaseCellRenderTemplate {
 	toolbar: ToolBar;
 	deleteToolbar: ToolBar;
 	betweenCellToolbar: ToolBar;
-	focusIndicatorLeft: HTMLElement;
-	focusIndicatorRight: HTMLElement;
+	focusIndicatorLeft: FastDomNode<HTMLElement>;
+	focusIndicatorRight: FastDomNode<HTMLElement>;
 	readonly disposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
 	bottomCellContainer: HTMLElement;
@@ -119,16 +120,16 @@ export interface CodeCellRenderTemplate extends BaseCellRenderTemplate {
 	runToolbar: ToolBar;
 	runButtonContainer: HTMLElement;
 	executionOrderLabel: HTMLElement;
-	outputContainer: HTMLElement;
+	outputContainer: FastDomNode<HTMLElement>;
 	cellOutputCollapsedContainer: HTMLElement;
-	outputShowMoreContainer: HTMLElement;
+	outputShowMoreContainer: FastDomNode<HTMLElement>;
 	focusSinkElement: HTMLElement;
 	editor: ICodeEditor;
 	progressBar: ProgressBar;
 	collapsedProgressBar: ProgressBar;
-	focusIndicatorRight: HTMLElement;
-	focusIndicatorBottom: HTMLElement;
-	dragHandle: HTMLElement;
+	focusIndicatorRight: FastDomNode<HTMLElement>;
+	focusIndicatorBottom: FastDomNode<HTMLElement>;
+	dragHandle: FastDomNode<HTMLElement>;
 }
 
 export function isCodeCellRenderTemplate(templateData: BaseCellRenderTemplate): templateData is CodeCellRenderTemplate {

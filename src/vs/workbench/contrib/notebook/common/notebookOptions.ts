@@ -24,6 +24,8 @@ export function getEditorTopPadding() {
 	return EDITOR_TOP_PADDING;
 }
 
+export const OutputInnerContainerTopPadding = 4;
+
 export interface NotebookLayoutConfiguration {
 	cellRightMargin: number;
 	cellRunGutter: number;
