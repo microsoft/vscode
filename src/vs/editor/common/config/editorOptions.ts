@@ -2285,7 +2285,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 			glyphMarginWidth = lineHeight;
 		}
 
-		let glyphMarginRightPadding = showGlyphMargin ? options.get(EditorOption.glyphMarginRightPadding) : 0;
+		let glyphMarginRightPadding = showGlyphMargin ? (options.get(EditorOption.glyphMarginRightPadding) ?? 0) : 0;
 		let glyphMarginLeft = 0;
 		let lineNumbersLeft = glyphMarginLeft + glyphMarginWidth + glyphMarginRightPadding;
 		let decorationsLeft = lineNumbersLeft + lineNumbersWidth;
