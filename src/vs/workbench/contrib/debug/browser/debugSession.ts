@@ -950,6 +950,11 @@ export class DebugSession implements IDebugSession {
 					focus();
 				}
 			}
+			// If the focus for the current session is on a non-existent thread, clear the focus.
+			const focusedThread = this.debugService.getViewModel().focusedThread;
+			if (focusedThread !== undefined && focusedThread.session === this && !this.threads.has(focusedThread.threadId)) {
+				this.debugService.focusStackFrame(undefined, undefined);
+			}
 			this._onDidChangeState.fire();
 		}));
 
