@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { tmpdir } from 'os';
 import { join } from 'vs/base/common/path';
-import { isLinux, isWindows } from 'vs/base/common/platform';
+import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Promises } from 'vs/base/node/pfs';
 import { flakySuite, getPathFromAmdModule, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { FileChangeType } from 'vs/platform/files/common/files';
@@ -163,18 +163,21 @@ flakySuite('Recursive Watcher', () => {
 		await Promises.copy(movedFolderpath, copiedFolderpath, { preserveSymlinks: false });
 		await changeFuture;
 
-		// Change file
-		changeFuture = awaitEvent(service, copiedFilepath, FileChangeType.UPDATED);
-		await Promises.writeFile(copiedFilepath, 'Hello Change');
-		await changeFuture;
+		if (isMacintosh) { // flaky on Windows and Linux
 
-		// Change file (atomic)
-		changeFuture = awaitEvent(service, copiedFilepath, FileChangeType.ADDED);
-		const tempFilePath = join(testDir, 'deep', 'tmpfile');
-		await Promises.writeFile(tempFilePath, 'Hello Atomic Change');
-		await Promises.unlink(copiedFilepath);
-		await Promises.rename(tempFilePath, copiedFilepath);
-		await changeFuture;
+			// Change file
+			changeFuture = awaitEvent(service, copiedFilepath, FileChangeType.UPDATED);
+			await Promises.writeFile(copiedFilepath, 'Hello Change');
+			await changeFuture;
+
+			// Change file (atomic)
+			changeFuture = awaitEvent(service, copiedFilepath, FileChangeType.ADDED);
+			const tempFilePath = join(testDir, 'deep', 'tmpfile');
+			await Promises.writeFile(tempFilePath, 'Hello Atomic Change');
+			await Promises.unlink(copiedFilepath);
+			await Promises.rename(tempFilePath, copiedFilepath);
+			await changeFuture;
+		}
 
 		// Delete file
 		changeFuture = awaitEvent(service, copiedFilepath, FileChangeType.DELETED);
