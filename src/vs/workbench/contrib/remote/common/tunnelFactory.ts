@@ -25,7 +25,9 @@ export class TunnelFactoryContribution extends Disposable implements IWorkbenchC
 		super();
 		const tunnelFactory = environmentService.options?.tunnelProvider?.tunnelFactory;
 		if (tunnelFactory) {
-			if (environmentService.options?.tunnelProvider?.features?.public && !environmentService.options.tunnelProvider.features.privacyOptions?.length) {
+			if (environmentService.options?.tunnelProvider?.features?.public &&
+				(!environmentService.options?.tunnelProvider?.features.privacyOptions
+					|| (environmentService.options?.tunnelProvider?.features.privacyOptions.length === 0))) {
 				environmentService.options.tunnelProvider.features.privacyOptions = [
 					{
 						id: 'private',
