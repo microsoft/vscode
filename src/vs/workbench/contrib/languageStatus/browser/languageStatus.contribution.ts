@@ -243,15 +243,13 @@ class EditorStatusContribution implements IWorkbenchContribution {
 		// -- command (if available)
 		const { command } = status;
 		if (command) {
-			const link = new Link({
+			store.add(new Link(right, {
 				label: command.title,
 				title: command.tooltip,
 				href: URI.from({
 					scheme: 'command', path: command.id, query: command.arguments && JSON.stringify(command.arguments)
 				}).toString()
-			}, undefined, this._openerService);
-			store.add(link);
-			dom.append(right, link.el);
+			}, undefined, this._openerService));
 		}
 
 		// -- pin
@@ -275,9 +273,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 				const parts = renderLabelWithIcons(node);
 				dom.append(target, ...parts);
 			} else {
-				const link = new Link(node, undefined, this._openerService);
-				store.add(link);
-				dom.append(target, link.el);
+				store.add(new Link(target, node, undefined, this._openerService));
 			}
 		}
 	}

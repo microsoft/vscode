@@ -282,8 +282,6 @@ class MarkerWidget extends Disposable {
 	private readonly messageAndDetailsContainer: HTMLElement;
 	private readonly disposables = this._register(new DisposableStore());
 
-	private _codeLink?: Link;
-
 	constructor(
 		private parent: HTMLElement,
 		private readonly markersViewModel: MarkersViewModel,
@@ -386,9 +384,9 @@ class MarkerWidget extends Disposable {
 					const codeMatches = filterData && filterData.codeMatches || [];
 					code.set(marker.code, codeMatches);
 				} else {
-					this._codeLink = new Link({ href: marker.code.target.toString(), label: '', title: marker.code.target.toString() }, undefined, this._openerService);
-					dom.append(parent, this._codeLink.el);
-					const code = new HighlightedLabel(dom.append(this._codeLink.el, dom.$('.marker-code')), false);
+					// TODO@sandeep: these widgets should be disposed
+					const code = new HighlightedLabel(dom.$('.marker-code'), false);
+					new Link(parent, { href: marker.code.target.toString(), label: code.element, title: marker.code.target.toString() }, undefined, this._openerService);
 					const codeMatches = filterData && filterData.codeMatches || [];
 					code.set(marker.code.value, codeMatches);
 				}

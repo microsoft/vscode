@@ -250,10 +250,7 @@ export class BannerPart extends Part implements IBannerService {
 			this.messageActionsContainer = append(this.element, $('div.message-actions-container'));
 
 			for (const action of item.actions) {
-				const actionLink = this._register(this.instantiationService.createInstance(Link, action, {}));
-				actionLink.el.tabIndex = -1;
-				actionLink.el.setAttribute('role', 'button');
-				this.messageActionsContainer.appendChild(actionLink.el);
+				this._register(this.instantiationService.createInstance(Link, this.messageActionsContainer, { ...action, tabIndex: -1 }, {}));
 			}
 		}
 

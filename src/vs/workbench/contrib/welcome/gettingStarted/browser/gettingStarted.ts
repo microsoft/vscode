@@ -1261,9 +1261,7 @@ export class GettingStartedPage extends EditorPane {
 					if (typeof node === 'string') {
 						append(p, renderFormattedText(node, { inline: true, renderCodeSegments: true }));
 					} else {
-						const link = this.instantiationService.createInstance(Link, node, { opener: (href) => this.runStepCommand(href) });
-
-						append(p, link.el);
+						const link = this.instantiationService.createInstance(Link, p, node, { opener: (href) => this.runStepCommand(href) });
 						this.detailsPageDisposables.add(link);
 					}
 				}
