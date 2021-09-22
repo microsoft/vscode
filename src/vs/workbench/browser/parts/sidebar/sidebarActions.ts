@@ -36,7 +36,7 @@ export class FocusSideBarAction extends Action2 {
 
 		// Show side bar
 		if (!layoutService.isVisible(Parts.SIDEBAR_PART)) {
-			layoutService.setSideBarHidden(false);
+			layoutService.setPartHidden(false, Parts.SIDEBAR_PART);
 			return;
 		}
 

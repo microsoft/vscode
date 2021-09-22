@@ -188,7 +188,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 			},
 			getContextMenuActionsForComposite: compositeId => this.getContextMenuActionsForComposite(compositeId),
 			getDefaultCompositeId: () => this.viewDescriptorService.getDefaultViewContainer(this.location)!.id,
-			hidePart: () => this.layoutService.setSideBarHidden(true),
+			hidePart: () => this.layoutService.setPartHidden(true, Parts.SIDEBAR_PART),
 			dndHandler: new CompositeDragAndDrop(this.viewDescriptorService, ViewContainerLocation.Sidebar,
 				async (id: string, focus?: boolean) => { return await this.paneCompositePart.openPaneComposite(id, focus) ?? null; },
 				(from: string, to: string, before?: Before2D) => this.compositeBar.move(from, to, before?.verticallyBefore),

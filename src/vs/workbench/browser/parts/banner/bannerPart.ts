@@ -179,7 +179,7 @@ export class BannerPart extends Part implements IBannerService {
 			this.visible = visible;
 			this.focusedActionIndex = -1;
 
-			this.layoutService.setBannerHidden(!visible);
+			this.layoutService.setPartHidden(!visible, Parts.BANNER_PART);
 			this._onDidChangeSize.fire(undefined);
 		}
 	}

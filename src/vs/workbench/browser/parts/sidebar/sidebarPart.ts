@@ -144,7 +144,7 @@ export class SidebarPart extends CompositePart<PaneComposite> implements IPaneCo
 					await this.openPaneComposite(containerToOpen.id);
 				}
 			} else {
-				this.layoutService.setSideBarHidden(true);
+				this.layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
 			}
 
 			this.removeComposite(viewletDescriptor.id);
@@ -267,7 +267,7 @@ export class SidebarPart extends CompositePart<PaneComposite> implements IPaneCo
 		if (!this.layoutService.isVisible(Parts.SIDEBAR_PART)) {
 			try {
 				this.blockOpeningViewlet = true;
-				this.layoutService.setSideBarHidden(false);
+				this.layoutService.setPartHidden(false, Parts.SIDEBAR_PART);
 			} finally {
 				this.blockOpeningViewlet = false;
 			}

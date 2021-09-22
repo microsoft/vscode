@@ -39,7 +39,7 @@ export class TogglePanelAction extends Action {
 	}
 
 	override async run(): Promise<void> {
-		this.layoutService.setPanelHidden(this.layoutService.isVisible(Parts.PANEL_PART));
+		this.layoutService.setPartHidden(this.layoutService.isVisible(Parts.PANEL_PART), Parts.PANEL_PART);
 	}
 }
 
@@ -61,7 +61,7 @@ class FocusPanelAction extends Action {
 
 		// Show panel
 		if (!this.layoutService.isVisible(Parts.PANEL_PART)) {
-			this.layoutService.setPanelHidden(false);
+			this.layoutService.setPartHidden(false, Parts.PANEL_PART);
 		}
 
 		// Focus into active panel
@@ -123,13 +123,14 @@ export class PanelActivityAction extends ActivityAction {
 
 	constructor(
 		activity: IActivity,
+		private readonly viewContainerLocation: ViewContainerLocation,
 		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService
 	) {
 		super(activity);
 	}
 
 	override async run(): Promise<void> {
-		await this.paneCompositeService.openPaneComposite(this.activity.id, ViewContainerLocation.Panel, true);
+		await this.paneCompositeService.openPaneComposite(this.activity.id, this.viewContainerLocation, true);
 		this.activate();
 	}
 
@@ -142,9 +143,10 @@ export class PlaceHolderPanelActivityAction extends PanelActivityAction {
 
 	constructor(
 		id: string,
+		viewContainerLocation: ViewContainerLocation,
 		@IPaneCompositePartService paneCompositeService: IPaneCompositePartService
 	) {
-		super({ id, name: id }, paneCompositeService);
+		super({ id, name: id }, viewContainerLocation, paneCompositeService);
 	}
 }
 
@@ -250,7 +252,7 @@ registerAction2(class extends Action2 {
 	run(accessor: ServicesAccessor) {
 		const layoutService = accessor.get(IWorkbenchLayoutService);
 		if (!layoutService.isVisible(Parts.PANEL_PART)) {
-			layoutService.setPanelHidden(false);
+			layoutService.setPartHidden(false, Parts.PANEL_PART);
 			// If the panel is not already maximized, maximize it
 			if (!layoutService.isPanelMaximized()) {
 				layoutService.toggleMaximizedPanel();
@@ -280,7 +282,7 @@ registerAction2(class extends Action2 {
 		});
 	}
 	run(accessor: ServicesAccessor) {
-		accessor.get(IWorkbenchLayoutService).setPanelHidden(true);
+		accessor.get(IWorkbenchLayoutService).setPartHidden(true, Parts.PANEL_PART);
 	}
 });
 

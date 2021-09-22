@@ -49,6 +49,7 @@ import { getVirtualWorkspaceScheme } from 'vs/platform/remote/common/remoteHosts
 import { Schemas } from 'vs/base/common/network';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ActivitybarPart } from 'vs/workbench/browser/parts/activitybar/activitybarPart';
+import { AuxiliaryBarPart } from 'vs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart';
 
 export enum Settings {
 	ACTIVITYBAR_VISIBLE = 'workbench.activityBar.visible',
@@ -94,6 +95,7 @@ enum Classes {
 	SIDEBAR_HIDDEN = 'nosidebar',
 	EDITOR_HIDDEN = 'noeditorarea',
 	PANEL_HIDDEN = 'nopanel',
+	AUXILIARYBAR_HIDDEN = 'noauxiliarybar',
 	STATUSBAR_HIDDEN = 'nostatusbar',
 	FULLSCREEN = 'fullscreen',
 	WINDOW_BORDER = 'border'
@@ -221,7 +223,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		},
 
 		auxiliaryBar: {
-			hidden: false
+			hidden: false,
+			panelToRestore: undefined as string | undefined
 		},
 
 		statusBar: {
@@ -559,6 +562,20 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 		}
 
+		// Auxiliary Bar visibility
+		this.state.auxiliaryBar.hidden = !this.configurationService.getValue(Settings.AUXILIARYBAR_ENABLED) || this.storageService.getBoolean(Storage.AUXILIARYBAR_HIDDEN, StorageScope.WORKSPACE, true);
+
+		// Auxiliary Panel to restore
+		if (!this.state.auxiliaryBar.hidden) {
+			let auxiliaryPanelToRestore = this.storageService.get(AuxiliaryBarPart.activePanelSettingsKey, StorageScope.WORKSPACE, this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.AuxiliaryBar)?.id);
+
+			if (auxiliaryPanelToRestore) {
+				this.state.auxiliaryBar.panelToRestore = auxiliaryPanelToRestore;
+			} else {
+				this.state.auxiliaryBar.hidden = true; // we hide panel if there is no auxiliary panel to restore
+			}
+		}
+
 		// Panel size before maximized
 		this.state.panel.lastNonMaximizedHeight = this.storageService.getNumber(Storage.PANEL_LAST_NON_MAXIMIZED_HEIGHT, StorageScope.GLOBAL, 300);
 		this.state.panel.lastNonMaximizedWidth = this.storageService.getNumber(Storage.PANEL_LAST_NON_MAXIMIZED_WIDTH, StorageScope.GLOBAL, 300);
@@ -800,6 +817,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					this.state.panel.panelToRestore = locationsRestored[ViewContainerLocation.Panel].id;
 				}
 
+				// If we opened a view in the auxiliary bar, stop any restore there
+				if (locationsRestored[ViewContainerLocation.AuxiliaryBar]) {
+					this.state.auxiliaryBar.panelToRestore = locationsRestored[ViewContainerLocation.AuxiliaryBar].id;
+				}
+
 				mark('code/didOpenDefaultViews');
 			}
 		})();
@@ -843,6 +865,26 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 
 			mark('code/didRestorePanel');
+		})());
+
+		// Restore Auxiliary Bar
+		layoutReadyPromises.push((async () => {
+
+			// Restoring views could mean that panel already
+			// restored, as such we need to test again
+			await restoreDefaultViewsPromise;
+			if (!this.state.auxiliaryBar.panelToRestore) {
+				return;
+			}
+
+			mark('code/willRestoreAuxiliaryBar');
+
+			const panel = await this.paneCompositeService.openPaneComposite(this.state.auxiliaryBar.panelToRestore, ViewContainerLocation.AuxiliaryBar);
+			if (!panel) {
+				await this.paneCompositeService.openPaneComposite(this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.AuxiliaryBar)?.id, ViewContainerLocation.AuxiliaryBar); // fallback to default panel as needed
+			}
+
+			mark('code/didRestoreAuxiliaryBar');
 		})());
 
 		// Restore Zen Mode
@@ -1239,6 +1281,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					this.setSideBarHidden(!visible, true);
 				} else if (part === panelPart) {
 					this.setPanelHidden(!visible, true);
+				} else if (part === auxiliaryBarPart) {
+					this.setAuxiliaryBarHidden(!visible);
 				} else if (part === editorPart) {
 					this.setEditorHidden(!visible, true);
 				}
@@ -1400,18 +1444,18 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 	}
 
-	setActivityBarHidden(hidden: boolean, skipLayout?: boolean): void {
+	private setActivityBarHidden(hidden: boolean, skipLayout?: boolean): void {
 		this.state.activityBar.hidden = hidden;
 
 		// Propagate to grid
 		this.workbenchGrid.setViewVisible(this.activityBarPartView, !hidden);
 	}
 
-	setBannerHidden(hidden: boolean): void {
+	private setBannerHidden(hidden: boolean): void {
 		this.workbenchGrid.setViewVisible(this.bannerPartView, !hidden);
 	}
 
-	setEditorHidden(hidden: boolean, skipLayout?: boolean): void {
+	private setEditorHidden(hidden: boolean, skipLayout?: boolean): void {
 		this.state.editor.hidden = hidden;
 
 		// Adjust CSS
@@ -1447,7 +1491,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		]);
 	}
 
-	setSideBarHidden(hidden: boolean, skipLayout?: boolean): void {
+	private setSideBarHidden(hidden: boolean, skipLayout?: boolean): void {
 		this.state.sideBar.hidden = hidden;
 
 		// Adjust CSS
@@ -1493,7 +1537,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 	}
 
-	setPanelHidden(hidden: boolean, skipLayout?: boolean): void {
+	private setPanelHidden(hidden: boolean, skipLayout?: boolean): void {
 		const wasHidden = this.state.panel.hidden;
 		this.state.panel.hidden = hidden;
 
@@ -1621,6 +1665,73 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const panelLastIsMaximized = this.state.panel.wasLastMaximized;
 
 		return panelOpensMaximized === PanelOpensMaximizedOptions.ALWAYS || (panelOpensMaximized === PanelOpensMaximizedOptions.REMEMBER_LAST && panelLastIsMaximized);
+	}
+
+	private setAuxiliaryBarHidden(hidden: boolean): void {
+		if (!this.configurationService.getValue(Settings.AUXILIARYBAR_ENABLED)) {
+			return;
+		}
+
+		this.state.auxiliaryBar.hidden = hidden;
+
+		// Adjust CSS
+		if (hidden) {
+			this.container.classList.add(Classes.AUXILIARYBAR_HIDDEN);
+		} else {
+			this.container.classList.remove(Classes.AUXILIARYBAR_HIDDEN);
+		}
+
+		// If auxiliary bar becomes hidden, also hide the current active pane composite if any
+		if (hidden && this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.AuxiliaryBar)) {
+			this.paneCompositeService.hideActivePaneComposite(ViewContainerLocation.AuxiliaryBar);
+
+			// Pass Focus to Editor or Panel if Auxiliary Bar is now hidden
+			const activePanel = this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel);
+			if (this.hasFocus(Parts.PANEL_PART) && activePanel) {
+				activePanel.focus();
+			} else {
+				this.focus();
+			}
+		}
+
+		// If auxiliary bar becomes visible, show last active pane composite or default pane composite
+		else if (!hidden && !this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.AuxiliaryBar)) {
+			const paneCompositeToOpen = this.paneCompositeService.getLastActivePaneCompositeId(ViewContainerLocation.AuxiliaryBar);
+			if (paneCompositeToOpen) {
+				const viewlet = this.paneCompositeService.openPaneComposite(paneCompositeToOpen, ViewContainerLocation.AuxiliaryBar, true);
+				if (!viewlet) {
+					this.paneCompositeService.openPaneComposite(this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.AuxiliaryBar)?.id, ViewContainerLocation.AuxiliaryBar, true);
+				}
+			}
+		}
+
+		// Propagate to grid
+		this.workbenchGrid.setViewVisible(this.auxiliaryBarPartView, !hidden);
+
+		// Remember in settings
+		const defaultHidden = true;
+		if (hidden !== defaultHidden) {
+			this.storageService.store(Storage.AUXILIARYBAR_HIDDEN, hidden ? 'true' : 'false', StorageScope.WORKSPACE, StorageTarget.USER);
+		} else {
+			this.storageService.remove(Storage.AUXILIARYBAR_HIDDEN, StorageScope.WORKSPACE);
+		}
+	}
+
+	setPartHidden(hidden: boolean, part: Parts): void {
+		switch (part) {
+			case Parts.ACTIVITYBAR_PART:
+				return this.setActivityBarHidden(hidden);
+			case Parts.SIDEBAR_PART:
+				return this.setSideBarHidden(hidden);
+			case Parts.EDITOR_PART:
+				return this.setEditorHidden(hidden);
+			case Parts.BANNER_PART:
+				return this.setBannerHidden(hidden);
+			case Parts.AUXILIARYBAR_PART:
+				return this.setAuxiliaryBarHidden(hidden);
+			case Parts.PANEL_PART:
+				return this.setPanelHidden(hidden);
+		}
 	}
 
 	hasWindowBorder(): boolean {

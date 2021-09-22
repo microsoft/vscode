@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/auxiliaryBarPart';
+import 'vs/workbench/browser/parts/auxiliarybar/auxiliaryBarActions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -15,6 +16,7 @@ import { activeContrastBorder, editorBackground, focusBorder } from 'vs/platform
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { Extensions as PaneCompositeExtensions } from 'vs/workbench/browser/panecomposite';
 import { BasePanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
+import { ActiveAuxiliaryContext, AuxiliaryBarFocusContext } from 'vs/workbench/common/auxiliarybar';
 import { SIDE_BAR_BACKGROUND, SIDE_BAR_TITLE_FOREGROUND } from 'vs/workbench/common/theme';
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -52,6 +54,8 @@ export class AuxiliaryBarPart extends BasePanelPart {
 			PaneCompositeExtensions.Auxiliary,
 			SIDE_BAR_BACKGROUND,
 			ViewContainerLocation.AuxiliaryBar,
+			ActiveAuxiliaryContext.bindTo(contextKeyService),
+			AuxiliaryBarFocusContext.bindTo(contextKeyService),
 			notificationService,
 			storageService,
 			telemetryService,

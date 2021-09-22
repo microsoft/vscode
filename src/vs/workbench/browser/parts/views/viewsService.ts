@@ -200,11 +200,8 @@ export class ViewsService extends Disposable implements IViewsService {
 		if (viewContainer) {
 			const viewContainerLocation = this.viewDescriptorService.getViewContainerLocation(viewContainer);
 			const isActive = viewContainerLocation !== null && this.paneCompositeService.getActivePaneComposite(viewContainerLocation);
-			switch (viewContainerLocation) {
-				case ViewContainerLocation.Panel:
-					return isActive ? this.layoutService.setPanelHidden(true) : undefined;
-				case ViewContainerLocation.Sidebar:
-					return isActive ? this.layoutService.setSideBarHidden(true) : undefined;
+			if (viewContainerLocation !== null) {
+				return isActive ? this.layoutService.setPartHidden(true, getPartByLocation(viewContainerLocation)) : undefined;
 			}
 		}
 	}
@@ -270,7 +267,7 @@ export class ViewsService extends Disposable implements IViewsService {
 					if (activeViewPaneContainer.views.length === 1) {
 						const location = this.viewDescriptorService.getViewContainerLocation(viewContainer);
 						if (location === ViewContainerLocation.Sidebar) {
-							this.layoutService.setSideBarHidden(true);
+							this.layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
 						} else if (location === ViewContainerLocation.Panel) {
 							this.paneCompositeService.hideActivePaneComposite(location);
 						}
@@ -430,7 +427,7 @@ export class ViewsService extends Disposable implements IViewsService {
 						if (viewDescriptorService.getViewLocationById(viewDescriptor.id) === ViewContainerLocation.Sidebar) {
 							editorGroupService.activeGroup.focus();
 						} else {
-							layoutService.setPanelHidden(true);
+							layoutService.setPartHidden(true, Parts.PANEL_PART);
 						}
 					} else {
 						viewsService.openView(viewDescriptor.id, true);
@@ -600,6 +597,18 @@ function getPaneCompositeExtension(viewContainerLocation: ViewContainerLocation)
 		case ViewContainerLocation.Sidebar:
 		default:
 			return PaneCompositeExtensions.Viewlets;
+	}
+}
+
+function getPartByLocation(viewContainerLocation: ViewContainerLocation): Parts.AUXILIARYBAR_PART | Parts.SIDEBAR_PART | Parts.PANEL_PART {
+	switch (viewContainerLocation) {
+		case ViewContainerLocation.AuxiliaryBar:
+			return Parts.AUXILIARYBAR_PART;
+		case ViewContainerLocation.Panel:
+			return Parts.PANEL_PART;
+		case ViewContainerLocation.Sidebar:
+		default:
+			return Parts.SIDEBAR_PART;
 	}
 }
 
