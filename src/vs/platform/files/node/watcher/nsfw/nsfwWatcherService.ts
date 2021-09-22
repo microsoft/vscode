@@ -49,7 +49,7 @@ export class NsfwWatcherService extends Disposable implements IWatcherService {
 	private readonly _onDidLogMessage = this._register(new Emitter<ILogMessage>());
 	readonly onDidLogMessage = this._onDidLogMessage.event;
 
-	private readonly watchers = new Map<string, IWatcher>();
+	protected readonly watchers = new Map<string, IWatcher>();
 
 	private verboseLogging = false;
 	private enospcErrorLogged = false;

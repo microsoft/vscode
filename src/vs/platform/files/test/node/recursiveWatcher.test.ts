@@ -26,13 +26,27 @@ flakySuite('Recursive Watcher', () => {
 
 			return this.normalizeRequests(requests).map(request => request.path);
 		}
+
+		override async watch(requests: IWatchRequest[]): Promise<void> {
+			await super.watch(requests);
+
+			for (const [, watcher] of this.watchers) {
+				await watcher.instance;
+			}
+		}
 	}
 
 	let testDir: string;
 	let service: TestNsfwWatcherService;
+	let enableLogging = false;
 
 	setup(async () => {
 		service = new TestNsfwWatcherService();
+
+		if (enableLogging) {
+			service.onDidLogMessage(e => console.log(`[recursive watcher test message] ${e.message}`));
+		}
+
 		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'filewatcher');
 
 		const sourceDir = getPathFromAmdModule(require, './fixtures/service');
