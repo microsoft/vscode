@@ -56,6 +56,9 @@ export interface TunnelPrivacy {
 
 export interface TunnelProviderFeatures {
 	elevation: boolean;
+	/**
+	 * @deprecated
+	 */
 	public: boolean;
 	privacyOptions: TunnelPrivacy[];
 }

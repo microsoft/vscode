@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import { ITunnelService, TunnelOptions, RemoteTunnel, TunnelCreationOptions, ITunnel, TunnelProtocol, TunnelPrivacyId } from 'vs/platform/remote/common/tunnel';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -24,6 +25,21 @@ export class TunnelFactoryContribution extends Disposable implements IWorkbenchC
 		super();
 		const tunnelFactory = environmentService.options?.tunnelProvider?.tunnelFactory;
 		if (tunnelFactory) {
+			if (environmentService.options?.tunnelProvider?.features?.public && !environmentService.options.tunnelProvider.features.privacyOptions?.length) {
+				environmentService.options.tunnelProvider.features.privacyOptions = [
+					{
+						id: 'private',
+						label: nls.localize('tunnelPrivacy.private', "Private"),
+						themeIcon: 'lock'
+					},
+					{
+						id: 'public',
+						label: nls.localize('tunnelPrivacy.public', "Public"),
+						themeIcon: 'eye'
+					}
+				];
+			}
+
 			this._register(tunnelService.setTunnelProvider({
 				forwardPort: (tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions): Promise<RemoteTunnel | undefined> | undefined => {
 					let tunnelPromise: Promise<ITunnel> | undefined;
