@@ -107,6 +107,8 @@ interface IGridDimensions {
 	rows: number;
 }
 
+const scrollbarHeight = 5;
+
 export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private static _lastKnownCanvasDimensions: ICanvasDimensions | undefined;
 	private static _lastKnownGridDimensions: IGridDimensions | undefined;
@@ -182,6 +184,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _workspaceFolder?: string;
 	private _labelComputer?: TerminalLabelComputer;
 	private _userHome?: string;
+	private _hasScrollBar?: boolean;
 
 	target?: TerminalLocation;
 	get instanceId(): number { return this._instanceId; }
@@ -573,7 +576,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return undefined;
 		}
 
-		TerminalInstance._lastKnownCanvasDimensions = new dom.Dimension(width, height - 2 /* bottom padding */);
+		TerminalInstance._lastKnownCanvasDimensions = new dom.Dimension(width, height - 2 + (this._hasScrollBar ? -scrollbarHeight : 0)/* bottom padding */);
 		return TerminalInstance._lastKnownCanvasDimensions;
 	}
 
@@ -1761,7 +1764,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		}
 
-		console.log(cols, rows);
 		if (immediate) {
 			// do not await, call setDimensions synchronously
 			this._processManager.setDimensions(cols, rows, true);
@@ -1906,6 +1908,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._terminalHasFixedWidth.set(false);
 			this._fixedCols = undefined;
 			this._fixedRows = undefined;
+			this._hasScrollBar = false;
+			this._initDimensions();
 			await this._resize();
 			this._scrollable?.setScrollDimensions(
 				{
@@ -1921,7 +1925,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			maxCols = Math.min(1000, maxCols);
 			if (maxCols > this.cols) {
 				this._fixedCols = maxCols;
-				// this._fixedRows = this.rows - (something times font size?)
+				this._hasScrollBar = true;
+				this._initDimensions();
+				this._fixedRows = this.rows;
 				await this._resize();
 				this._terminalHasFixedWidth.set(true);
 				if (!this._scrollable && this._xtermElement && this._wrapperElement && this._container) {
@@ -1929,8 +1935,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 						vertical: ScrollbarVisibility.Hidden,
 						horizontal: ScrollbarVisibility.Visible
 					});
-					// recalcuate rows given that the scrollbar exists
-					// include a boolean has scrollbar so that in getDimensions, it's - 2 - scrollbar height
 					this._container.appendChild(this._scrollable.getDomNode());
 				}
 				this._scrollable?.setScrollDimensions(
