@@ -109,29 +109,29 @@ flakySuite('Recursive Watcher', () => {
 		await Promises.rename(newFolderPath, renamedFolderPath);
 		await changeFuture;
 
-		// TODO: case rename is currently broken
-		// if (isWindows || isMacintosh) {
+		// TODO: case rename is currently broken on macOS
+		if (isWindows) {
 
-		// 	// Rename file (same name, different case)
-		// 	const caseRenamedFilePath = join(testDir, 'deep', 'RenamedFile.txt');
-		// 	changeFuture = Promise.all([
-		// 		awaitEvent(service, renamedFilePath, FileChangeType.DELETED),
-		// 		awaitEvent(service, caseRenamedFilePath, FileChangeType.ADDED)
-		// 	]);
-		// 	await Promises.rename(renamedFilePath, caseRenamedFilePath);
-		// 	await changeFuture;
-		// 	renamedFilePath = caseRenamedFilePath;
+			// Rename file (same name, different case)
+			const caseRenamedFilePath = join(testDir, 'deep', 'RenamedFile.txt');
+			changeFuture = Promise.all([
+				awaitEvent(service, renamedFilePath, FileChangeType.DELETED),
+				awaitEvent(service, caseRenamedFilePath, FileChangeType.ADDED)
+			]);
+			await Promises.rename(renamedFilePath, caseRenamedFilePath);
+			await changeFuture;
+			renamedFilePath = caseRenamedFilePath;
 
-		// 	// Rename folder (same name, different case)
-		// 	const caseRenamedFolderPath = join(testDir, 'deep', 'REnamed Folder');
-		// 	changeFuture = Promise.all([
-		// 		awaitEvent(service, renamedFolderPath, FileChangeType.DELETED),
-		// 		awaitEvent(service, caseRenamedFolderPath, FileChangeType.ADDED)
-		// 	]);
-		// 	await Promises.rename(renamedFolderPath, caseRenamedFolderPath);
-		// 	await changeFuture;
-		// 	renamedFolderPath = caseRenamedFolderPath;
-		// }
+			// Rename folder (same name, different case)
+			const caseRenamedFolderPath = join(testDir, 'deep', 'REnamed Folder');
+			changeFuture = Promise.all([
+				awaitEvent(service, renamedFolderPath, FileChangeType.DELETED),
+				awaitEvent(service, caseRenamedFolderPath, FileChangeType.ADDED)
+			]);
+			await Promises.rename(renamedFolderPath, caseRenamedFolderPath);
+			await changeFuture;
+			renamedFolderPath = caseRenamedFolderPath;
+		}
 
 		// Move file
 		const movedFilepath = join(testDir, 'movedFile.txt');
