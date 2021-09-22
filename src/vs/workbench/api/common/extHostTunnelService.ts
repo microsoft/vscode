@@ -17,7 +17,7 @@ export interface TunnelDto {
 	remoteAddress: { port: number, host: string };
 	localAddress: { port: number, host: string } | string;
 	public: boolean;
-	privacy: string;
+	privacy: TunnelPrivacyId | string;
 	protocol: string | undefined;
 }
 
@@ -27,7 +27,7 @@ export namespace TunnelDto {
 			remoteAddress: tunnel.remoteAddress,
 			localAddress: tunnel.localAddress,
 			public: !!tunnel.public,
-			privacy: tunnel.privacy ?? TunnelPrivacyId.Private,
+			privacy: tunnel.privacy ?? (tunnel.public ? TunnelPrivacyId.Public : TunnelPrivacyId.Private),
 			protocol: tunnel.protocol
 		};
 	}
@@ -38,7 +38,7 @@ export namespace TunnelDto {
 				port: tunnel.tunnelRemotePort
 			},
 			localAddress: tunnel.localAddress,
-			public: tunnel.public,
+			public: tunnel.privacy !== TunnelPrivacyId.ConstantPrivate && tunnel.privacy !== TunnelPrivacyId.ConstantPrivate,
 			privacy: tunnel.privacy,
 			protocol: tunnel.protocol
 		};

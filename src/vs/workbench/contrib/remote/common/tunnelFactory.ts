@@ -53,8 +53,7 @@ export class TunnelFactoryContribution extends Disposable implements IWorkbenchC
 							// The tunnel factory may give us an inaccessible local address.
 							// To make sure this doesn't happen, resolve the uri immediately.
 							localAddress: await this.resolveExternalUri(localAddress),
-							public: !!tunnel.public,
-							privacy: tunnel.privacy ?? TunnelPrivacyId.Private,
+							privacy: tunnel.privacy ?? (tunnel.public ? TunnelPrivacyId.Public : TunnelPrivacyId.Private),
 							protocol: tunnel.protocol ?? TunnelProtocol.Http,
 							dispose: async () => { await tunnel.dispose(); }
 						};
