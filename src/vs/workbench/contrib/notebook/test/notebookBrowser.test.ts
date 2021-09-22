@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { getRanges, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { formatCellDuration, getRanges, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 suite('notebookBrowser', () => {
@@ -47,5 +47,14 @@ suite('notebookBrowser', () => {
 			];
 			assert.deepStrictEqual(getRanges(cells as ICellViewModel[], predicate), [{ start: 0, end: 2 }, { start: 3, end: 4 }, { start: 6, end: 7 }]);
 		});
+	});
+
+	test('formatCellDuration', function () {
+		assert.strictEqual(formatCellDuration(0), '0.0s');
+		assert.strictEqual(formatCellDuration(10), '0.1s');
+		assert.strictEqual(formatCellDuration(200), '0.2s');
+		assert.strictEqual(formatCellDuration(3300), '3.3s');
+		assert.strictEqual(formatCellDuration(180000), '3m 0.0s');
+		assert.strictEqual(formatCellDuration(189412), '3m 9.4s');
 	});
 });
