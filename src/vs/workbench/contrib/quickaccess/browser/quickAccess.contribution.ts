@@ -58,6 +58,15 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+	group: '1_welcome',
+	command: {
+		id: ShowAllCommandsAction.ID,
+		title: localize({ key: 'miShowAllCommands', comment: ['&& denotes a mnemonic'] }, "Search All &&Commands")
+	},
+	order: 2
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	group: '1_open',
 	command: {
 		id: OpenViewPickerAction.ID,

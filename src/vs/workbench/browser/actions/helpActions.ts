@@ -64,9 +64,9 @@ class OpenIntroductoryVideosUrlAction extends Action2 {
 		super({
 			id: OpenIntroductoryVideosUrlAction.ID,
 			title: {
-				value: localize('openIntroductoryVideosUrl', "Introductory Videos"),
-				mnemonicTitle: localize({ key: 'miIntroductoryVideos', comment: ['&& denotes a mnemonic'] }, "Introductory &&Videos"),
-				original: 'Introductory Videos'
+				value: localize('openIntroductoryVideosUrl', "Video Tutorials"),
+				mnemonicTitle: localize({ key: 'miIntroductoryVideos', comment: ['&& denotes a mnemonic'] }, "&&Video Tutorials"),
+				original: 'Video Tutorials'
 			},
 			category: CATEGORIES.Help,
 			f1: true,
