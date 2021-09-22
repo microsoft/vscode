@@ -166,7 +166,7 @@ export class DebugService implements IDebugService {
 			this.onStateChange();
 		}));
 		this.toDispose.push(Event.any(this.adapterManager.onDidRegisterDebugger, this.configurationManager.onDidSelectConfiguration)(() => {
-			const debugUxValue = (this.state !== State.Inactive || (this.configurationManager.getAllConfigurations().length > 0 && this.adapterManager.hasDebuggers())) ? 'default' : 'simple';
+			const debugUxValue = (this.state !== State.Inactive || (this.configurationManager.getAllConfigurations().length > 0 && this.adapterManager.hasEnabledDebuggers())) ? 'default' : 'simple';
 			this.debugUx.set(debugUxValue);
 			this.debugStorage.storeDebugUxState(debugUxValue);
 		}));
@@ -270,7 +270,7 @@ export class DebugService implements IDebugService {
 				this.debugState.set(getStateLabel(state));
 				this.inDebugMode.set(state !== State.Inactive);
 				// Only show the simple ux if debug is not yet started and if no launch.json exists
-				const debugUxValue = ((state !== State.Inactive && state !== State.Initializing) || (this.adapterManager.hasDebuggers() && this.configurationManager.selectedConfiguration.name)) ? 'default' : 'simple';
+				const debugUxValue = ((state !== State.Inactive && state !== State.Initializing) || (this.adapterManager.hasEnabledDebuggers() && this.configurationManager.selectedConfiguration.name)) ? 'default' : 'simple';
 				this.debugUx.set(debugUxValue);
 				this.debugStorage.storeDebugUxState(debugUxValue);
 			});
@@ -466,7 +466,8 @@ export class DebugService implements IDebugService {
 				}
 				resolvedConfig = cfg;
 
-				if (!this.adapterManager.getDebugger(resolvedConfig.type) || (configByProviders.request !== 'attach' && configByProviders.request !== 'launch')) {
+				const dbg = this.adapterManager.getDebugger(resolvedConfig.type);
+				if (!dbg || (configByProviders.request !== 'attach' && configByProviders.request !== 'launch')) {
 					let message: string;
 					if (configByProviders.request !== 'attach' && configByProviders.request !== 'launch') {
 						message = configByProviders.request ? nls.localize('debugRequestNotSupported', "Attribute '{0}' has an unsupported value '{1}' in the chosen debug configuration.", 'request', configByProviders.request)
@@ -489,6 +490,12 @@ export class DebugService implements IDebugService {
 
 					await this.showError(message, actionList);
 
+					return false;
+				}
+
+				if (!this.adapterManager.isDebuggerEnabled(dbg)) {
+					const message = nls.localize('debuggerDisabled', "Configured debug type '{0}' is disabled", dbg.type);
+					await this.showError(message, []);
 					return false;
 				}
 
