@@ -16,7 +16,7 @@ import { Extensions as ConfigurationExtensions, IConfigurationNode, IConfigurati
 import { IResourceEditorInput, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IEditorInputWithOptions, IEditorInputWithOptionsAndGroup, IResourceDiffEditorInput, IUntitledTextResourceEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { EditorInputWithOptions, EditorInputWithOptionsAndGroup, IResourceDiffEditorInput, IUntitledTextResourceEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { PreferredGroup } from 'vs/workbench/services/editor/common/editorService';
 
@@ -77,7 +77,7 @@ export const enum ResolvedStatus {
 	NONE = 2,
 }
 
-export type ResolvedEditor = IEditorInputWithOptionsAndGroup | ResolvedStatus;
+export type ResolvedEditor = EditorInputWithOptionsAndGroup | ResolvedStatus;
 
 export type RegisteredEditorOptions = {
 	/**
@@ -103,7 +103,7 @@ export type RegisteredEditorInfo = {
 	priority: RegisteredEditorPriority;
 };
 
-type EditorInputFactoryResult = IEditorInputWithOptions | Promise<IEditorInputWithOptions>;
+type EditorInputFactoryResult = EditorInputWithOptions | Promise<EditorInputWithOptions>;
 
 export type EditorInputFactoryFunction = (editorInput: IResourceEditorInput | ITextResourceEditorInput, group: IEditorGroup) => EditorInputFactoryResult;
 
@@ -154,7 +154,7 @@ export interface IEditorResolverService {
 	 * @param preferredGroup The group you want to open the editor in
 	 * @returns An IEditorInputWithOptionsAndGroup if there is an available editor or a status of how to proceed
 	 */
-	resolveEditor(editor: IEditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): Promise<ResolvedEditor>;
+	resolveEditor(editor: EditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): Promise<ResolvedEditor>;
 
 	/**
 	 * Given a resource returns all the editor ids that match that resource. If there is exclusive editor we return an empty array
