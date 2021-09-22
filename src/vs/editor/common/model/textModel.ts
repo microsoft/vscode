@@ -29,7 +29,7 @@ import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageCo
 import { NULL_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/nullMode';
 import { ignoreBracketsInToken } from 'vs/editor/common/modes/supports';
 import { BracketsUtils, RichEditBracket, RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
-import { registerThemingParticipant, ThemeColor } from 'vs/platform/theme/common/themeService';
+import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { VSBufferReadableStream, VSBuffer } from 'vs/base/common/buffer';
 import { TokensStore, MultilineTokens, countEOL, MultilineTokens2, TokensStore2 } from 'vs/editor/common/model/tokensStore';
 import { Color } from 'vs/base/common/color';
@@ -42,7 +42,6 @@ import { listenStream } from 'vs/base/common/stream';
 import { ArrayQueue, findLast } from 'vs/base/common/arrays';
 import { BracketPairColorizer } from 'vs/editor/common/model/bracketPairColorizer/bracketPairColorizer';
 import { DecorationProvider } from 'vs/editor/common/model/decorationProvider';
-import { editorBracketHighlightingForeground1, editorBracketHighlightingForeground2, editorBracketHighlightingForeground3, editorBracketHighlightingForeground4, editorBracketHighlightingForeground5, editorBracketHighlightingForeground6 } from 'vs/editor/common/view/editorColorRegistry';
 import { CursorColumns } from 'vs/editor/common/controller/cursorColumns';
 
 function createTextBufferBuilder() {
