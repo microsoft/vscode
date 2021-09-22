@@ -704,12 +704,12 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 						? startViewLine.modelLineWrappedLineIdx
 						: 0;
 
-				let count =
+				let endOffset =
 					curModelLine === endViewLine.modelLineNumber
 						? endViewLine.modelLineWrappedLineIdx + 1
 						: line.getViewLineCount();
 
-				for (let i = startOffset; i < count; i++) {
+				for (let i = startOffset; i < endOffset; i++) {
 					viewLines.push(new ViewLineInfo(curModelLine, i));
 				}
 			}
