@@ -53,8 +53,8 @@ sync() {
 	echo "Rebasing $local_branch branch onto $upstream_branch from upstream"
 	git rebase --onto=$upstream_branch $(get_base_commit)^ $local_branch
 	if [[ $? -ne 0 ]]; then
-		echo "There are merge conflicts doing the rebase. Reverting changes"
-		git rebase --abort
+		echo "There are merge conflicts doing the rebase."
+		echo "Please resolve them or abort the rebase."
 		exit_script "Could not rebase succesfully"
 	fi
 	echo "$local_branch sucessfully updated"
