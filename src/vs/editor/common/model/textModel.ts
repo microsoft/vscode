@@ -39,7 +39,7 @@ import { TextChange } from 'vs/editor/common/model/textChange';
 import { Constants } from 'vs/base/common/uint';
 import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
 import { listenStream } from 'vs/base/common/stream';
-import { ArrayQueue, tail } from 'vs/base/common/arrays';
+import { ArrayQueue, findLast } from 'vs/base/common/arrays';
 import { BracketPairColorizer } from 'vs/editor/common/model/bracketPairColorizer/bracketPairColorizer';
 import { DecorationProvider } from 'vs/editor/common/model/decorationProvider';
 import { editorBracketHighlightingForeground1, editorBracketHighlightingForeground2, editorBracketHighlightingForeground3, editorBracketHighlightingForeground4, editorBracketHighlightingForeground5, editorBracketHighlightingForeground6 } from 'vs/editor/common/view/editorColorRegistry';
@@ -3100,7 +3100,17 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 						Range.fromPositions(activePosition)
 					);
 
-			activeBracketPairRange = tail(bracketsContainingActivePosition)?.range;
+			activeBracketPairRange = findLast(
+				bracketsContainingActivePosition,
+				/* Exclude single line bracket pairs for cases such as
+				 * ```
+				 * function test() {
+				 * 		if (true) { | }
+				 * }
+				 * ```
+				 */
+				(i) => i.range.startLineNumber !== i.range.endLineNumber
+			)?.range;
 		}
 
 		const queue = new ArrayQueue(bracketPairs);
