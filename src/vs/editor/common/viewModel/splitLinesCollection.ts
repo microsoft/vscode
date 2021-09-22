@@ -1778,7 +1778,7 @@ export class IdentityLinesCollection implements IViewModelLinesCollection {
 	}
 
 	public getViewLinesBracketGuides(startLineNumber: number, endLineNumber: number, activePosition: IPosition | null): IndentGuide[][] {
-		return [];
+		return new Array(endLineNumber - startLineNumber + 1).fill([]);
 	}
 
 	public getViewLinesIndentGuides(viewStartLineNumber: number, viewEndLineNumber: number): number[] {
