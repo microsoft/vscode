@@ -13,7 +13,7 @@ import { FileChangeType } from 'vs/platform/files/common/files';
 import { NsfwWatcherService } from 'vs/platform/files/node/watcher/nsfw/nsfwWatcherService';
 import { IWatchRequest } from 'vs/platform/files/node/watcher/watcher';
 
-flakySuite('NSFW Watcher Service', () => {
+flakySuite('Recursive Watcher', () => {
 
 	class TestNsfwWatcherService extends NsfwWatcherService {
 

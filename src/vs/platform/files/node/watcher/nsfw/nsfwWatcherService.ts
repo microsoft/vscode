@@ -281,6 +281,8 @@ export class NsfwWatcherService extends Disposable implements IWatcherService {
 				try {
 					const realpath = realpathSync(request.path);
 					if (realpath === request.path) {
+						this.warn(`ignoring a path for watching who's parent is already watched: ${request.path}`);
+
 						continue; // path is not a symbolic link or similar
 					}
 				} catch (error) {
