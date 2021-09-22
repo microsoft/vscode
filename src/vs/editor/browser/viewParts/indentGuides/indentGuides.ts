@@ -72,7 +72,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 	}
 	public override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
 		const selection = e.selections[0];
-		const newPosition = selection.getStartPosition();
+		const newPosition = selection.getPosition();
 		if (!this._primaryPosition?.equals(newPosition)) {
 			this._primaryPosition = newPosition;
 			return true;
