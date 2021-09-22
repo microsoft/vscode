@@ -925,7 +925,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 					}
 
 					if (!panelOpenerTimeout && openPanel) {
-						panelOpenerTimeout = setTimeout(() => this.layoutService.setPanelHidden(false), 200);
+						panelOpenerTimeout = setTimeout(() => this.layoutService.setPartHidden(false, Parts.PANEL_PART), 200);
 					} else if (panelOpenerTimeout && !openPanel) {
 						clearTimeout(panelOpenerTimeout);
 						panelOpenerTimeout = undefined;

@@ -645,6 +645,7 @@ export interface IEditorTabDto {
 	resource?: UriComponents;
 	editorId?: string;
 	isActive: boolean;
+	additionalResourcesAndViewIds: { resource?: UriComponents, viewId?: string }[]
 }
 
 export interface IExtHostEditorTabsShape {

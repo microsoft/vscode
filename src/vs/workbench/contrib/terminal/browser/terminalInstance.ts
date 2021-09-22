@@ -485,7 +485,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 
-		const computedStyle = window.getComputedStyle(this._container.parentElement!);
+		const computedStyle = window.getComputedStyle(this._wrapperElement!);
 		const width = parseInt(computedStyle.getPropertyValue('width').replace('px', ''), 10);
 		const height = parseInt(computedStyle.getPropertyValue('height').replace('px', ''), 10);
 		this._evaluateColsAndRows(width, height);
@@ -562,15 +562,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return undefined;
 		}
 
-		const wrapperElementStyle = getComputedStyle(this._wrapperElement);
-		const marginLeft = parseInt(wrapperElementStyle.marginLeft!.split('px')[0], 10);
-		const marginRight = parseInt(wrapperElementStyle.marginRight!.split('px')[0], 10);
-		const bottom = parseInt(wrapperElementStyle.bottom!.split('px')[0], 10);
-
-		const innerWidth = width - marginLeft - marginRight;
-		const innerHeight = height - bottom - 1;
-
-		TerminalInstance._lastKnownCanvasDimensions = new dom.Dimension(innerWidth, innerHeight);
+		TerminalInstance._lastKnownCanvasDimensions = new dom.Dimension(width, height - 2 /* bottom padding */);
 		return TerminalInstance._lastKnownCanvasDimensions;
 	}
 
@@ -1213,25 +1205,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (this._shellLaunchConfig.name) {
 				this.refreshTabLabels(this._shellLaunchConfig.name, TitleEventSource.Api);
 			} else {
-				// Only listen for process title changes when a name is not provided
-				if (this._configHelper.config.tabs.title.includes('${sequence}') || this._configHelper.config.tabs.description.includes('${sequence}')) {
-					// Set the title to the first event if the sequence hasn't set it yet
-					Event.once(this._processManager.onProcessTitle)(e => {
-						if (!this._title) {
-							this.refreshTabLabels(e, TitleEventSource.Sequence);
-						}
+				// Listen to xterm.js' sequence title change event, trigger this async to ensure
+				// _xtermReadyPromise is ready constructed since this is called from the ctor
+				setTimeout(() => {
+					this._xtermReadyPromise.then(xterm => {
+						this._messageTitleDisposable = xterm.onTitleChange(e => this._onTitleChange(e));
 					});
-					// Listen to xterm.js' sequence title change event, trigger this async to ensure
-					// _xtermReadyPromise is ready constructed since this is called from the ctor
-					setTimeout(() => {
-						this._xtermReadyPromise.then(xterm => {
-							this._messageTitleDisposable = xterm.onTitleChange(e => this._onTitleChange(e));
-						});
-					});
-				} else {
-					this.refreshTabLabels(this._shellLaunchConfig.executable, TitleEventSource.Process);
-					this._messageTitleDisposable = this._processManager.onProcessTitle(title => this.refreshTabLabels(title ? title : '', TitleEventSource.Process));
-				}
+				});
+				this.refreshTabLabels(this._shellLaunchConfig.executable, TitleEventSource.Process);
+				this._messageTitleDisposable = this._processManager.onProcessTitle(title => this.refreshTabLabels(title ? title : '', TitleEventSource.Process));
 			}
 		});
 		this._processManager.onProcessExit(exitCode => this._onProcessExit(exitCode));
@@ -1835,9 +1817,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				// On Windows, some shells will fire this with the full path which we want to trim
 				// to show just the file name. This should only happen if the title looks like an
 				// absolute Windows file path
-				if (this._processManager.os === OperatingSystem.Windows && title.match(/^[a-zA-Z]:\\.+\.[a-zA-Z]{1,3}/)) {
-					title = path.win32.parse(title).name;
-					this._sequence = title;
+				this._sequence = title;
+				if (this._processManager.os === OperatingSystem.Windows) {
+					if (title.match(/^[a-zA-Z]:\\.+\.[a-zA-Z]{1,3}/)) {
+						title = path.win32.parse(title).name;
+						this._sequence = title;
+					} else {
+						this._sequence = undefined;
+					}
 				}
 				break;
 		}
@@ -2324,12 +2311,33 @@ export class TerminalLabelComputer extends Disposable {
 			return this._instance.staticTitle.replace(/[\n\r\t]/g, '') || templateProperties.process?.replace(/[\n\r\t]/g, '') || '';
 		}
 		const detection = this._instance.capabilities.includes(ProcessCapability.CwdDetection);
-		const zeroRootWorkspace = this._workspaceContextService.getWorkspace().folders.length === 0 && templateProperties.cwd === (this._instance.userHome || this._configHelper.config.cwd);
-		const singleRootWorkspace = this._workspaceContextService.getWorkspace().folders.length === 1 && templateProperties.cwd === (this._configHelper.config.cwd || this._workspaceContextService.getWorkspace().folders[0]?.uri.fsPath);
+		const zeroRootWorkspace = this._workspaceContextService.getWorkspace().folders.length === 0 && this.pathsEqual(templateProperties.cwd, this._instance.userHome || this._configHelper.config.cwd);
+		const singleRootWorkspace = this._workspaceContextService.getWorkspace().folders.length === 1 && this.pathsEqual(templateProperties.cwd, this._configHelper.config.cwd || this._workspaceContextService.getWorkspace().folders[0]?.uri.fsPath);
 		templateProperties.cwdFolder = (!templateProperties.cwd || !detection || zeroRootWorkspace || singleRootWorkspace) ? '' : path.basename(templateProperties.cwd);
 
 		//Remove special characters that could mess with rendering
 		const label = template(labelTemplate, (templateProperties as unknown) as { [key: string]: string | ISeparator | undefined | null; }).replace(/[\n\r\t]/g, '');
 		return label === '' && labelType === TerminalLabelType.Title ? (this._instance.processName || '') : label;
+	}
+
+	pathsEqual(path1?: string | null, path2?: string) {
+		if (!path1 && !path2) {
+			return true;
+		} else if (!path1 || !path2) {
+			return false;
+		} else if (path1 === path2) {
+			return true;
+		}
+		const split1 = path1.includes('/') ? path1.split('/') : path1.split('\\');
+		const split2 = path2.includes('/') ? path2.split('/') : path2.split('\\');
+		if (split1.length !== split2.length) {
+			return false;
+		}
+		for (let i = 0; i < path1.length; i++) {
+			if (path1[i] !== path2[i]) {
+				return false;
+			}
+		}
+		return true;
 	}
 }

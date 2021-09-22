@@ -7,6 +7,19 @@ import { isLinux } from 'vs/base/common/platform';
 import { URI as uri } from 'vs/base/common/uri';
 import { FileChangeType, IFileChange, isParent } from 'vs/platform/files/common/files';
 
+export interface IWatchRequest {
+
+	/**
+	 * The path to watch.
+	 */
+	path: string;
+
+	/**
+	 * A set of glob patterns or paths to exclude from watching.
+	 */
+	excludes: string[];
+}
+
 export interface IDiskFileChange {
 	type: FileChangeType;
 	path: string;

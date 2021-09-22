@@ -12,7 +12,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { Dimension, size, clearNode, append } from 'vs/base/browser/dom';
+import { Dimension, size, clearNode } from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -144,14 +144,12 @@ export class WorkspaceTrustRequiredEditor extends EditorPlaceholderPane {
 			localize('requiresFolderTrustText', "The file is not displayed in the editor because trust has not been granted to the folder.") :
 			localize('requiresWorkspaceTrustText', "The file is not displayed in the editor because trust has not been granted to the workspace.");
 
-		const link = disposables.add(this.instantiationService.createInstance(Link, {
+		disposables.add(this.instantiationService.createInstance(Link, label, {
 			label: localize('manageTrust', "Manage Workspace Trust"),
 			href: ''
 		}, {
 			opener: () => this.commandService.executeCommand('workbench.trust.manage')
 		}));
-
-		append(label, link.el);
 	}
 }
 
@@ -178,14 +176,12 @@ abstract class AbstractErrorEditor extends EditorPlaceholderPane {
 		const group = this.group;
 		const input = this.input;
 		if (group && input) {
-			const link = disposables.add(this.instantiationService.createInstance(Link, {
+			disposables.add(this.instantiationService.createInstance(Link, label, {
 				label: localize('retry', "Try Again"),
 				href: ''
 			}, {
 				opener: () => group.openEditor(input, { ...this.options, context: EditorOpenContext.USER /* explicit user gesture */ })
 			}));
-
-			append(label, link.el);
 		}
 	}
 }

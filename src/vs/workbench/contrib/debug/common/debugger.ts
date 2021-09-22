@@ -19,12 +19,15 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { ITelemetryEndpoint } from 'vs/platform/telemetry/common/telemetry';
 import { cleanRemoteAuthority } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 
 export class Debugger implements IDebugger {
 
 	private debuggerContribution: IDebuggerContribution;
 	private mergedExtensionDescriptions: IExtensionDescription[] = [];
 	private mainExtensionDescription: IExtensionDescription | undefined;
+
+	private debuggerWhen: ContextKeyExpression | undefined;
 
 	constructor(
 		private adapterManager: IAdapterManager,
@@ -38,6 +41,8 @@ export class Debugger implements IDebugger {
 	) {
 		this.debuggerContribution = { type: dbgContribution.type };
 		this.merge(dbgContribution, extensionDescription);
+
+		this.debuggerWhen = typeof this.debuggerContribution.when === 'string' ? ContextKeyExpr.deserialize(this.debuggerContribution.when) : undefined;
 	}
 
 	merge(otherDebuggerContribution: IDebuggerContribution, extensionDescription: IExtensionDescription): void {
@@ -131,6 +136,10 @@ export class Debugger implements IDebugger {
 
 	get languages(): string[] | undefined {
 		return this.debuggerContribution.languages;
+	}
+
+	get when(): ContextKeyExpression | undefined {
+		return this.debuggerWhen;
 	}
 
 	hasInitialConfiguration(): boolean {

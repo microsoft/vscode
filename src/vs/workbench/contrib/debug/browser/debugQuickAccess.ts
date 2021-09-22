@@ -35,7 +35,7 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 
 	protected async _getPicks(filter: string): Promise<(IQuickPickSeparator | IPickerQuickAccessItem)[]> {
 		const picks: Array<IPickerQuickAccessItem | IQuickPickSeparator> = [];
-		if (!this.debugService.getAdapterManager().hasDebuggers()) {
+		if (!this.debugService.getAdapterManager().hasEnabledDebuggers()) {
 			return [];
 		}
 

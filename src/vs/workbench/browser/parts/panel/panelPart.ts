@@ -57,9 +57,6 @@ interface IPlaceholderViewContainer {
 }
 
 export abstract class BasePanelPart extends CompositePart<PaneComposite> implements IPaneCompositePart, IPaneCompositeSelectorPart {
-	protected abstract pinnedPanelsKey: string;
-	protected abstract placeholdeViewContainersKey: string;
-
 	private static readonly MIN_COMPOSITE_BAR_WIDTH = 50;
 
 	declare readonly _serviceBrand: undefined;
@@ -88,9 +85,6 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 	get onDidPaneCompositeOpen(): Event<IPaneComposite> { return Event.map(this.onDidCompositeOpen.event, compositeEvent => <IPaneComposite>compositeEvent.composite); }
 	readonly onDidPaneCompositeClose = this.onDidCompositeClose.event as Event<IPaneComposite>;
 
-	private activePanelContextKey: IContextKey<string>;
-	private panelFocusContextKey: IContextKey<boolean>;
-
 	private compositeBar: CompositeBar;
 	private readonly compositeActions = new Map<string, { activityAction: PanelActivityAction, pinnedAction: ToggleCompositePinnedAction; }>();
 
@@ -108,11 +102,15 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 	private readonly enabledViewContainersContextKeys: Map<string, IContextKey<boolean>> = new Map<string, IContextKey<boolean>>();
 
 	constructor(
-		private readonly partId: Parts,
+		private readonly partId: Parts.PANEL_PART | Parts.AUXILIARYBAR_PART,
 		activePanelSettingsKey: string,
+		protected readonly pinnedPanelsKey: string,
+		protected readonly placeholdeViewContainersKey: string,
 		panelRegistryId: string,
 		private readonly backgroundColor: string,
 		private readonly viewContainerLocation: ViewContainerLocation,
+		private readonly activePanelContextKey: IContextKey<string>,
+		private panelFocusContextKey: IContextKey<boolean>,
 		@INotificationService notificationService: INotificationService,
 		@IStorageService storageService: IStorageService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -161,7 +159,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 			openComposite: (compositeId, preserveFocus) => this.openPaneComposite(compositeId, !preserveFocus).then(panel => panel || null),
 			getActivityAction: compositeId => this.getCompositeActions(compositeId).activityAction,
 			getCompositePinnedAction: compositeId => this.getCompositeActions(compositeId).pinnedAction,
-			getOnCompositeClickAction: compositeId => this.instantiationService.createInstance(PanelActivityAction, assertIsDefined(this.getPaneComposite(compositeId))),
+			getOnCompositeClickAction: compositeId => this.instantiationService.createInstance(PanelActivityAction, assertIsDefined(this.getPaneComposite(compositeId)), this.viewContainerLocation),
 			fillExtraContextMenuActions: actions => {
 				actions.push(...[
 					new Separator(),
@@ -173,8 +171,8 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 				]);
 			},
 			getContextMenuActionsForComposite: compositeId => this.getContextMenuActionsForComposite(compositeId),
-			getDefaultCompositeId: () => viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Panel)!.id,
-			hidePart: () => this.layoutService.setPanelHidden(true),
+			getDefaultCompositeId: () => viewDescriptorService.getDefaultViewContainer(this.viewContainerLocation)!.id,
+			hidePart: () => this.layoutService.setPartHidden(true, this.partId),
 			dndHandler: this.dndHandler,
 			compositeSize: 0,
 			overflowActionSize: 44,
@@ -189,9 +187,6 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 				dragAndDropBorder: theme.getColor(PANEL_DRAG_AND_DROP_BORDER)
 			})
 		}));
-
-		this.activePanelContextKey = ActivePanelContext.bindTo(contextKeyService);
-		this.panelFocusContextKey = PanelFocusContext.bindTo(contextKeyService);
 
 		this.registerListeners();
 		this.onDidRegisterPanels([...this.getPaneComposites()]);
@@ -217,8 +212,9 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 	}
 
 	private onDidRegisterPanels(panels: PaneCompositeDescriptor[]): void {
+		const cachedPanels = this.getCachedPanels();
 		for (const panel of panels) {
-			const cachedPanel = this.getCachedPanels().filter(({ id }) => id === panel.id)[0];
+			const cachedPanel = cachedPanels.filter(({ id }) => id === panel.id)[0];
 			const activePanel = this.getActivePaneComposite();
 			const isActive =
 				activePanel?.getId() === panel.id ||
@@ -279,12 +275,12 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 
 		if (activeContainers.length) {
 			if (this.getActivePaneComposite()?.getId() === panelId) {
-				const defaultPanelId = this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Panel)!.id;
+				const defaultPanelId = this.viewDescriptorService.getDefaultViewContainer(this.viewContainerLocation)!.id;
 				const containerToOpen = activeContainers.filter(c => c.id === defaultPanelId)[0] || activeContainers[0];
 				await this.openPaneComposite(containerToOpen.id);
 			}
 		} else {
-			this.layoutService.setPanelHidden(true);
+			this.layoutService.setPartHidden(true, this.partId);
 		}
 
 		this.removeComposite(panelId);
@@ -502,7 +498,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 		if (!this.layoutService.isVisible(this.partId)) {
 			try {
 				this.blockOpeningPanel = true;
-				this.layoutService.setPanelHidden(false);
+				this.layoutService.setPartHidden(false, this.partId);
 			} finally {
 				this.blockOpeningPanel = false;
 			}
@@ -573,7 +569,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 	hideActivePaneComposite(): void {
 		// First check if panel is visible and hide if so
 		if (this.layoutService.isVisible(this.partId)) {
-			this.layoutService.setPanelHidden(true);
+			this.layoutService.setPartHidden(true, this.partId);
 		}
 
 		this.hideActiveComposite();
@@ -642,12 +638,12 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 
 			if (panel) {
 				compositeActions = {
-					activityAction: this.instantiationService.createInstance(PanelActivityAction, assertIsDefined(this.getPaneComposite(compositeId))),
+					activityAction: this.instantiationService.createInstance(PanelActivityAction, assertIsDefined(this.getPaneComposite(compositeId)), this.viewContainerLocation),
 					pinnedAction: new ToggleCompositePinnedAction(this.getPaneComposite(compositeId), this.compositeBar)
 				};
 			} else {
 				compositeActions = {
-					activityAction: this.instantiationService.createInstance(PlaceHolderPanelActivityAction, compositeId),
+					activityAction: this.instantiationService.createInstance(PlaceHolderPanelActivityAction, compositeId, this.viewContainerLocation),
 					pinnedAction: new PlaceHolderToggleCompositePinnedAction(compositeId, this.compositeBar)
 				};
 			}
@@ -815,8 +811,8 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 
 export class PanelPart extends BasePanelPart {
 	static readonly activePanelSettingsKey = 'workbench.panelpart.activepanelid';
-	protected pinnedPanelsKey = 'workbench.panel.pinnedPanels';
-	protected placeholdeViewContainersKey = 'workbench.panel.placeholderPanels';
+	static readonly pinnedPanelsKey = 'workbench.panel.pinnedPanels';
+	static readonly placeholdeViewContainersKey = 'workbench.panel.placeholderPanels';
 
 	private globalToolBar: ToolBar | undefined;
 	private globalActions: CompositeMenuActions;
@@ -837,9 +833,13 @@ export class PanelPart extends BasePanelPart {
 		super(
 			Parts.PANEL_PART,
 			PanelPart.activePanelSettingsKey,
+			PanelPart.pinnedPanelsKey,
+			PanelPart.placeholdeViewContainersKey,
 			PaneCompositeExtensions.Panels,
 			PANEL_BACKGROUND,
 			ViewContainerLocation.Panel,
+			ActivePanelContext.bindTo(contextKeyService),
+			PanelFocusContext.bindTo(contextKeyService),
 			notificationService,
 			storageService,
 			telemetryService,

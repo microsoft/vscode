@@ -86,7 +86,7 @@ export class ViewContainerActivityAction extends ActivityAction {
 				default:
 					// Hide sidebar if selected viewlet already visible
 					this.logAction('hide');
-					this.layoutService.setSideBarHidden(true);
+					this.layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
 					break;
 			}
 
@@ -403,7 +403,7 @@ registerAction2(
 
 		async run(accessor: ServicesAccessor): Promise<void> {
 			const layoutService = accessor.get(IWorkbenchLayoutService);
-			layoutService.setActivityBarHidden(false);
+			layoutService.setPartHidden(false, Parts.ACTIVITYBAR_PART);
 			layoutService.focusPart(Parts.ACTIVITYBAR_PART);
 		}
 	});

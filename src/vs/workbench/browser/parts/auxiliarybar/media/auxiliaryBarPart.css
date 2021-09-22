@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench.nopanel .part.auxiliarybar {
+.monaco-workbench.noauxiliarybar .part.auxiliarybar {
 	display: none !important;
 	visibility: hidden !important;
 }

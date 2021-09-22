@@ -3,17 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, Disposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IFilesConfiguration, IFileService } from 'vs/platform/files/common/files';
-import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { ResourceMap } from 'vs/base/common/map';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { INotificationService, Severity, NeverShowAgainScope } from 'vs/platform/notification/common/notification';
 import { localize } from 'vs/nls';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { isAbsolute } from 'vs/base/common/path';
+import { isEqualOrParent } from 'vs/base/common/resources';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export class WorkspaceWatcher extends Disposable {
 
@@ -24,7 +27,8 @@ export class WorkspaceWatcher extends Disposable {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IOpenerService private readonly openerService: IOpenerService
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		super();
 
@@ -44,12 +48,12 @@ export class WorkspaceWatcher extends Disposable {
 
 		// Removed workspace: Unwatch
 		for (const removed of e.removed) {
-			this.unwatchWorkspace(removed.uri);
+			this.unwatchWorkspace(removed);
 		}
 
 		// Added workspace: Watch
 		for (const added of e.added) {
-			this.watchWorkspace(added.uri);
+			this.watchWorkspace(added);
 		}
 	}
 
@@ -58,7 +62,7 @@ export class WorkspaceWatcher extends Disposable {
 	}
 
 	private onDidChangeConfiguration(e: IConfigurationChangeEvent): void {
-		if (e.affectsConfiguration('files.watcherExclude')) {
+		if (e.affectsConfiguration('files.watcherExclude') || e.affectsConfiguration('files.watcherInclude')) {
 			this.refresh();
 		}
 	}
@@ -102,11 +106,11 @@ export class WorkspaceWatcher extends Disposable {
 		}
 	}
 
-	private watchWorkspace(resource: URI) {
+	private watchWorkspace(workspace: IWorkspaceFolder): void {
 
 		// Compute the watcher exclude rules from configuration
 		const excludes: string[] = [];
-		const config = this.configurationService.getValue<IFilesConfiguration>({ resource });
+		const config = this.configurationService.getValue<IFilesConfiguration>({ resource: workspace.uri });
 		if (config.files?.watcherExclude) {
 			for (const key in config.files.watcherExclude) {
 				if (config.files.watcherExclude[key] === true) {
@@ -115,15 +119,46 @@ export class WorkspaceWatcher extends Disposable {
 			}
 		}
 
-		// Watch workspace
-		const disposable = this.fileService.watch(resource, { recursive: true, excludes });
-		this.watches.set(resource, disposable);
+		const pathsToWatch = new ResourceMap<URI>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
+
+		// Add the workspace as path to watch
+		pathsToWatch.set(workspace.uri, workspace.uri);
+
+		// Compute additional includes from configuration
+		if (config.files?.watcherInclude) {
+			for (const includePath of config.files.watcherInclude) {
+				if (!includePath) {
+					continue;
+				}
+
+				// Absolute: verify a child of the workspace
+				if (isAbsolute(includePath)) {
+					const candidate = URI.file(includePath).with({ scheme: workspace.uri.scheme });
+					if (isEqualOrParent(candidate, workspace.uri)) {
+						pathsToWatch.set(candidate, candidate);
+					}
+				}
+
+				// Relative: join against workspace folder
+				else {
+					const candidate = workspace.toResource(includePath);
+					pathsToWatch.set(candidate, candidate);
+				}
+			}
+		}
+
+		// Watch all paths as instructed
+		const disposables = new DisposableStore();
+		for (const [, pathToWatch] of pathsToWatch) {
+			disposables.add(this.fileService.watch(pathToWatch, { recursive: true, excludes }));
+		}
+		this.watches.set(workspace.uri, disposables);
 	}
 
-	private unwatchWorkspace(resource: URI) {
-		if (this.watches.has(resource)) {
-			dispose(this.watches.get(resource));
-			this.watches.delete(resource);
+	private unwatchWorkspace(workspace: IWorkspaceFolder): void {
+		if (this.watches.has(workspace.uri)) {
+			dispose(this.watches.get(workspace.uri));
+			this.watches.delete(workspace.uri);
 		}
 	}
 
@@ -134,11 +169,11 @@ export class WorkspaceWatcher extends Disposable {
 
 		// Watch each workspace folder
 		for (const folder of this.contextService.getWorkspace().folders) {
-			this.watchWorkspace(folder.uri);
+			this.watchWorkspace(folder);
 		}
 	}
 
-	private unwatchWorkspaces() {
+	private unwatchWorkspaces(): void {
 		this.watches.forEach(disposable => dispose(disposable));
 		this.watches.clear();
 	}

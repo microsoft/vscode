@@ -14,9 +14,11 @@ import { ViewColumn } from 'vs/workbench/api/common/extHostTypes';
 export interface IEditorTab {
 	label: string;
 	viewColumn: ViewColumn;
+	index: number;
 	resource?: vscode.Uri;
 	viewId?: string;
 	isActive: boolean;
+	additionalResourcesAndViewIds: { resource?: vscode.Uri, viewId?: string }[]
 }
 
 export interface IExtHostEditorTabs extends IExtHostEditorTabsShape {
@@ -58,12 +60,16 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 			return Object.freeze({
 				label: dto.label,
 				viewColumn: typeConverters.ViewColumn.to(dto.viewColumn),
+				index,
 				resource: URI.revive(dto.resource),
+				additionalResourcesAndViewIds: dto.additionalResourcesAndViewIds.map(({ resource, viewId }) => ({ resource: URI.revive(resource), viewId })),
 				viewId: dto.editorId,
 				isActive: dto.isActive
 			});
 		});
-		this._tabs = this._tabs.sort((t1, t2) => t1.viewColumn - t2.viewColumn);
+		this._tabs = this._tabs.sort((t1, t2) => {
+			return t1.viewColumn === t2.viewColumn ? t1.index - t2.index : t1.viewColumn - t2.viewColumn;
+		});
 		const oldActiveTab = this._activeTab;
 		this._activeTab = activeIndex === -1 ? undefined : this._tabs[activeIndex];
 		if (this._activeTab !== oldActiveTab) {
