@@ -49,6 +49,11 @@ export class CodeCell extends Disposable {
 		const lineHeight = this.viewCell.layoutInfo.fontInfo?.lineHeight || 17;
 		const editorPadding = this.notebookEditor.notebookOptions.computeEditorPadding(this.viewCell.internalMetadata);
 
+		// patch up focusMode
+		if (this.viewCell.focusMode === CellFocusMode.Editor && this.notebookEditor.getActiveCell() !== this.viewCell) {
+			this.viewCell.focusMode = CellFocusMode.Container;
+		}
+
 		const editorHeight = this.viewCell.layoutInfo.editorHeight === 0
 			? lineNum * lineHeight + editorPadding.top + editorPadding.bottom
 			: this.viewCell.layoutInfo.editorHeight;
@@ -91,10 +96,6 @@ export class CodeCell extends Disposable {
 		});
 
 		const updateForFocusMode = () => {
-			if (this.notebookEditor.getFocus().start !== this.notebookEditor.getCellIndex(viewCell)) {
-				templateData.container.classList.toggle('cell-editor-focus', viewCell.focusMode === CellFocusMode.Editor);
-			}
-
 			if (viewCell.focusMode === CellFocusMode.Editor && this.notebookEditor.getActiveCell() === this.viewCell) {
 				templateData.editor?.focus();
 			}
