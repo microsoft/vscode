@@ -71,6 +71,8 @@ import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/termi
 import { isSafari } from 'vs/base/browser/browser';
 import { ISeparator, template } from 'vs/base/common/labels';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -105,6 +107,8 @@ interface IGridDimensions {
 	rows: number;
 }
 
+const scrollbarHeight = 5;
+
 export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private static _lastKnownCanvasDimensions: ICanvasDimensions | undefined;
 	private static _lastKnownGridDimensions: IGridDimensions | undefined;
@@ -134,10 +138,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _xtermSearch: SearchAddon | undefined;
 	private _xtermUnicode11: Unicode11Addon | undefined;
 	private _xtermElement: HTMLDivElement | undefined;
+	private _scrollable: DomScrollableElement | undefined;
 	private _terminalHasTextContextKey: IContextKey<boolean>;
 	private _terminalA11yTreeFocusContextKey: IContextKey<boolean>;
 	private _cols: number = 0;
 	private _rows: number = 0;
+	private _fixedCols: number | undefined = undefined;
+	private _fixedRows: number | undefined = undefined;
 	private _cwd: string | undefined = undefined;
 	private _initialCwd: string | undefined = undefined;
 	private _dimensionsOverride: ITerminalDimensionsOverride | undefined;
@@ -177,11 +184,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _workspaceFolder?: string;
 	private _labelComputer?: TerminalLabelComputer;
 	private _userHome?: string;
+	private _hasScrollBar?: boolean;
 
 	target?: TerminalLocation;
 	get instanceId(): number { return this._instanceId; }
 	get resource(): URI { return this._resource; }
 	get cols(): number {
+		if (this._fixedCols !== undefined) {
+			return this._fixedCols;
+		}
 		if (this._dimensionsOverride && this._dimensionsOverride.cols) {
 			if (this._dimensionsOverride.forceExactSize) {
 				return this._dimensionsOverride.cols;
@@ -191,6 +202,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return this._cols;
 	}
 	get rows(): number {
+		if (this._fixedRows !== undefined) {
+			return this._fixedRows;
+		}
 		if (this._dimensionsOverride && this._dimensionsOverride.rows) {
 			if (this._dimensionsOverride.forceExactSize) {
 				return this._dimensionsOverride.rows;
@@ -274,6 +288,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	constructor(
 		private readonly _terminalFocusContextKey: IContextKey<boolean>,
+		private readonly _terminalHasFixedWidth: IContextKey<boolean>,
 		private readonly _terminalShellTypeContextKey: IContextKey<string>,
 		private readonly _terminalAltBufferActiveContextKey: IContextKey<boolean>,
 		private readonly _configHelper: TerminalConfigHelper,
@@ -309,7 +324,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._isVisible = false;
 		this._isDisposed = false;
 		this._instanceId = TerminalInstance._instanceIdCounter++;
-
 		this._hasHadInput = false;
 		this._titleReadyPromise = new Promise<string>(c => {
 			this._titleReadyComplete = c;
@@ -562,7 +576,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return undefined;
 		}
 
-		TerminalInstance._lastKnownCanvasDimensions = new dom.Dimension(width, height - 2 /* bottom padding */);
+		TerminalInstance._lastKnownCanvasDimensions = new dom.Dimension(width, height - 2 + (this._hasScrollBar ? -scrollbarHeight : 0)/* bottom padding */);
 		return TerminalInstance._lastKnownCanvasDimensions;
 	}
 
@@ -734,8 +748,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._wrapperElement = document.createElement('div');
 		this._wrapperElement.classList.add('terminal-wrapper');
 		this._xtermElement = document.createElement('div');
-
 		this._wrapperElement.appendChild(this._xtermElement);
+
 		this._container.appendChild(this._wrapperElement);
 
 		const xterm = await this._xtermReadyPromise;
@@ -749,6 +763,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!xterm.element || !xterm.textarea) {
 			throw new Error('xterm elements not set after open');
 		}
+
 
 		this._setAriaLabel(xterm, this._instanceId, this._title);
 
@@ -1028,8 +1043,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (this._wrapperElement.xterm) {
 				this._wrapperElement.xterm = undefined;
 			}
-			if (this._wrapperElement.parentElement && this._container) {
-				this._container.removeChild(this._wrapperElement);
+			if (this._scrollable) {
+				this._scrollable.dispose();
+				this._scrollable = undefined;
 			}
 		}
 		if (this._xterm) {
@@ -1221,7 +1237,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._initialDataEvents?.push(ev.data);
 			this._onData.fire(ev.data);
 		});
-		this._processManager.onProcessOverrideDimensions(e => this.setDimensions(e, true));
+		this._processManager.onProcessOverrideDimensions(e => this.setOverrideDimensions(e, true));
 		this._processManager.onProcessResolvedShellLaunchConfig(e => this._setResolvedShellLaunchConfig(e));
 		this._processManager.onProcessDidChangeHasChildProcesses(e => this._onDidChangeHasChildProcesses.fire(e));
 		this._processManager.onEnvironmentVariableInfoChanged(e => this._onEnvironmentVariableInfoChanged(e));
@@ -1684,9 +1700,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 
-		if (this._xterm && this._xterm.element) {
-			this._xterm.element.style.width = terminalWidth + 'px';
-		}
+		// if (this._xterm && this._xterm.element) {
+		// 	this._xterm.element.style.width = terminalWidth + 'px';
+		// }
 
 		this._resize();
 
@@ -1836,7 +1852,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return this._titleReadyPromise;
 	}
 
-	setDimensions(dimensions: ITerminalDimensionsOverride | undefined, immediate: boolean = false): void {
+	setOverrideDimensions(dimensions: ITerminalDimensionsOverride | undefined, immediate: boolean = false): void {
 		if (this._dimensionsOverride && this._dimensionsOverride.forceExactSize && !dimensions && this._rows === 0 && this._cols === 0) {
 			// this terminal never had a real size => keep the last dimensions override exact size
 			this._cols = this._dimensionsOverride.cols;
@@ -1848,6 +1864,107 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		} else {
 			this._resize();
 		}
+	}
+
+	async setFixedDimensions(): Promise<void> {
+		const cols = await this._quickInputService.input({
+			title: nls.localize('setTerminalDimensionsColumn', "Set Fixed Dimensions: Column"),
+			placeHolder: 'Enter a number or leave empty for automatic width',
+			validateInput: async (text) => text.length > 0 && !text.match(/^\d+$/) ? { content: 'Enter a number or leave empty size automatically', severity: Severity.Error } : undefined
+		});
+		if (cols === undefined) {
+			return;
+		}
+		this._fixedCols = this._parseFixedDimension(cols);
+		this._terminalHasFixedWidth.set(!!this._fixedCols);
+		const rows = await this._quickInputService.input({
+			title: nls.localize('setTerminalDimensionsRow', "Set Fixed Dimensions: Row"),
+			placeHolder: 'Enter a number or leave empty for automatic height',
+			validateInput: async (text) => text.length > 0 && !text.match(/^\d+$/) ? { content: 'Enter a number or leave empty size automatically', severity: Severity.Error } : undefined
+		});
+		if (rows === undefined) {
+			return;
+		}
+		this._fixedRows = this._parseFixedDimension(rows);
+		this._resize();
+	}
+
+	private _parseFixedDimension(value: string): number | undefined {
+		if (value === '') {
+			return undefined;
+		}
+		const parsed = parseInt(value);
+		if (parsed <= 0) {
+			throw new Error(`Could not parse dimension "${value}"`);
+		}
+		return parsed;
+	}
+
+	async toggleSizeToContentWidth(): Promise<void> {
+		if (!this._xterm?.buffer.active) {
+			return;
+		}
+		if (this._terminalHasFixedWidth.get() === true) {
+			this._terminalHasFixedWidth.set(false);
+			this._fixedCols = undefined;
+			this._fixedRows = undefined;
+			this._hasScrollBar = false;
+			this._initDimensions();
+			await this._resize();
+			this._scrollable?.setScrollDimensions(
+				{
+					scrollWidth: 0
+				});
+		} else {
+			let maxCols = 0;
+			for (let i = this._xterm.buffer.active.viewportY; i < this._xterm.buffer.active.length; i++) {
+				const lineWidth = this._getLineWidth(i, this._xterm.buffer.active);
+				maxCols = Math.max(maxCols, lineWidth.width || 0);
+				i = lineWidth.newIndex;
+			}
+			maxCols = Math.min(1000, maxCols);
+			if (maxCols > this.cols) {
+				this._fixedCols = maxCols;
+				this._hasScrollBar = true;
+				this._initDimensions();
+				this._fixedRows = this.rows;
+				await this._resize();
+				this._terminalHasFixedWidth.set(true);
+				if (!this._scrollable && this._xtermElement && this._wrapperElement && this._container) {
+					this._scrollable = new DomScrollableElement(this._wrapperElement, {
+						vertical: ScrollbarVisibility.Hidden,
+						horizontal: ScrollbarVisibility.Visible
+					});
+					this._container.appendChild(this._scrollable.getDomNode());
+				}
+				this._scrollable?.setScrollDimensions(
+					{
+						width: this._xterm.element?.clientWidth,
+						scrollWidth: this._fixedCols * this._configHelper.getFont(this._xtermCore).charWidth! - this._xterm.element!.clientWidth
+					});
+				this._scrollable!.getDomNode().style.paddingBottom = '16px';
+				for (let j = this._xterm.buffer.active.viewportY; j < this._xterm.buffer.active.length; j++) {
+					let line = this._xterm.buffer.active.getLine(j);
+					(line as any)._line.isWrapped = false;
+				}
+			}
+		}
+	}
+
+	private _getLineWidth(index: number, buffer: IBuffer): { width: number, newIndex: number } {
+		let width = 0;
+		let line = buffer.getLine(index);
+		let newIndex = index;
+		while (line?.isWrapped) {
+			width += line.length;
+			for (let i = 0; i < line.length; i++) {
+				const cell = line.getCell(i);
+				width += cell?.getWidth() || 0;
+			}
+			newIndex++;
+			line = buffer.getLine(newIndex);
+		}
+		return { width, newIndex };
 	}
 
 	private _setResolvedShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig): void {

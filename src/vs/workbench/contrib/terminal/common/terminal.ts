@@ -412,6 +412,8 @@ export const enum TerminalCommandId {
 	ResizePaneRight = 'workbench.action.terminal.resizePaneRight',
 	ResizePaneUp = 'workbench.action.terminal.resizePaneUp',
 	CreateWithProfileButton = 'workbench.action.terminal.createProfileButton',
+	SizeToContentWidth = 'workbench.action.terminal.sizeToContentWidth',
+	SizeToContentWidthInstance = 'workbench.action.terminal.sizeToContentWidthInstance',
 	ResizePaneDown = 'workbench.action.terminal.resizePaneDown',
 	Focus = 'workbench.action.terminal.focus',
 	FocusNext = 'workbench.action.terminal.focusNext',
@@ -464,6 +466,7 @@ export const enum TerminalCommandId {
 	MoveToEditor = 'workbench.action.terminal.moveToEditor',
 	MoveToEditorInstance = 'workbench.action.terminal.moveToEditorInstance',
 	MoveToTerminalPanel = 'workbench.action.terminal.moveToTerminalPanel',
+	SetDimensions = 'workbench.action.terminal.setDimensions',
 }
 
 export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
@@ -485,6 +488,7 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TerminalCommandId.FocusPreviousPane,
 	TerminalCommandId.FocusPrevious,
 	TerminalCommandId.Focus,
+	TerminalCommandId.SizeToContentWidth,
 	TerminalCommandId.Kill,
 	TerminalCommandId.KillEditor,
 	TerminalCommandId.MoveToEditor,
