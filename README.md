@@ -10,7 +10,7 @@ This project provides a version of VS Code that runs a server on a remote machin
 
 ## Why?
 
-VS Code has traditionally been a desktop IDE built with web technology. A few years back people started patching it, in order to run it in a remote context and to make it accessible through web browsers. [These efforts have been complex and error prone](https://github.com/cdr/code-server/issues/3835), because many changes had to be made across the large code base of VS Code.
+VS Code has traditionally been a desktop IDE built with web technology. A few years back people started patching it, in order to run it in a remote context and to make it accessible through web browsers. These efforts have been complex and error prone, because many changes had to be made across the large code base of VS Code.
 
 Luckily in 2019 the VS Code team started to refactor its architecture to support a browser-based working mode. While this architecture has been adopted by Gitpod and GitHub, the important bits have not been open-sourced, yet. As a result many people in the community are still using the old hard to maintain and error-prone approach.
 
@@ -26,6 +26,8 @@ docker run -it --init -p 3000:3000 -v "$(pwd):/home/workspace:cached" gitpod/ope
 ```
 - after this, visit [localhost:3000](http://localhost:3000).
 
+You can use `nightly` tag to test nightly changes.
+
 ### Linux
 
 - [Download the latest release](https://github.com/gitpod-io/openvscode-server/releases/latest)
@@ -37,6 +39,8 @@ cd openvscode-server-v${OPENVSCODE_SERVER_VERSION}
 ```
 - after this, visit [localhost:3000](http://localhost:3000).
 
+You can use [prerelease](https://github.com/gitpod-io/openvscode-server/releases) to test nightly changes.
+
 ## The scope of this project
 
 This project really only adds the minimal bits required to run VS Code in a server scenario. We have no intention of changing VS Code in any way or adding additional features through this. Feature requests, bug fixes, etc. should go to the upstream repository.
@@ -44,6 +48,9 @@ This project really only adds the minimal bits required to run VS Code in a serv
 > **For any feature requests, bug reports, or contributions that are not specific to running VS Code in a server context,**
 >
 > **please go to [Visual Studio Code - Open Source "OSS"](https://github.com/microsoft/vscode)**
+
+## Supporters
+The project is supported by companies such as [GitLab](https://gitlab.com/), [VMware](https://www.vmware.com/), [Uber](https://www.uber.com/), [SAP](https://www.sap.com/), [Sourcegraph](https://sourcegraph.com/), [RStudio](https://www.rstudio.com/), [SUSE Rancher](https://rancher.com/), [Tabnine](https://www.tabnine.com/), [Render](https://render.com/) and [TypeFox](https://www.typefox.io/).
 
 ## Contributing
 
