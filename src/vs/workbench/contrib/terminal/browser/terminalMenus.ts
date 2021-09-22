@@ -497,6 +497,18 @@ export function setupTerminalMenus(): void {
 						id: TerminalCommandId.SizeToContentWidthInstance,
 						title: localize('workbench.action.terminal.sizeToContentWidthInstance', "Set width to content")
 					},
+					when: ContextKeyExpr.not(TerminalContextKeyStrings.HasFixedWidth),
+					group: ContextMenuGroup.Edit
+				}
+			},
+			{
+				id: MenuId.TerminalTabContext,
+				item: {
+					command: {
+						id: TerminalCommandId.ResetTerminalDimensionsInstance,
+						title: localize('workbench.action.terminal.resetTerminalDimensionsInstance', "Reset Terminal Dimensions")
+					},
+					when: ContextKeyExpr.equals(TerminalContextKeyStrings.HasFixedWidth, true),
 					group: ContextMenuGroup.Edit
 				}
 			},
@@ -573,9 +585,17 @@ export function setupTerminalMenus(): void {
 	MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, {
 		command: {
 			id: TerminalCommandId.SizeToContentWidth,
-			title: localize('workbench.action.terminal.sizeToContentWidthInstance', "Set width to content")
+			title: localize('workbench.action.terminal.sizeToContentWidth', "Set width to content")
 		},
-		when: ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal),
+		when: ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal) && ContextKeyExpr.equals(TerminalContextKeyStrings.HasFixedWidth, false),
+		group: '3_files'
+	});
+	MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, {
+		command: {
+			id: TerminalCommandId.ResetTerminalDimensions,
+			title: localize('workbench.action.terminal.resetTerminalDimensions', "Reset Terminal Dimensions")
+		},
+		when: ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal) && ContextKeyExpr.equals(TerminalContextKeyStrings.HasFixedWidth, true),
 		group: '3_files'
 	});
 
