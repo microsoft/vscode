@@ -105,12 +105,8 @@ export function configurationTelemetry(telemetryService: ITelemetryService, conf
  * @param environmentService
  * @returns false - telemetry is completely disabled, true - telemetry is logged locally, but may not be sent
  */
-export function supportsTelemetryLogging(productService: IProductService, environmentService: IEnvironmentService): boolean {
-	if (environmentService.disableTelemetry || !productService.enableTelemetry) {
-		return false;
-	}
-
-	return true;
+export function supportsTelemetry(productService: IProductService, environmentService: IEnvironmentService): boolean {
+	return !(environmentService.disableTelemetry || !productService.enableTelemetry);
 }
 
 /**

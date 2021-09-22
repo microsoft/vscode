@@ -25,7 +25,7 @@ import { asJson, asText, IRequestService, isSuccess } from 'vs/platform/request/
 import { getServiceMachineId } from 'vs/platform/serviceMachineId/common/serviceMachineId';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
-import { getTelemetryLevel, supportsTelemetryLogging } from 'vs/platform/telemetry/common/telemetryUtils';
+import { getTelemetryLevel, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 
 const CURRENT_TARGET_PLATFORM = isWeb ? TargetPlatform.WEB : getTargetPlatform(platform, arch);
 
@@ -959,7 +959,7 @@ export async function resolveMarketplaceHeaders(version: string, productService:
 		'User-Agent': `VSCode ${version}`
 	};
 	const uuid = await getServiceMachineId(environmentService, fileService, storageService);
-	if (supportsTelemetryLogging(productService, environmentService) && getTelemetryLevel(configurationService) === TelemetryLevel.USAGE) {
+	if (supportsTelemetry(productService, environmentService) && getTelemetryLevel(configurationService) === TelemetryLevel.USAGE) {
 		headers['X-Market-User-Id'] = uuid;
 	}
 	return headers;

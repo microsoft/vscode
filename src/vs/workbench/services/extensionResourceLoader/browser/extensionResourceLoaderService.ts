@@ -14,7 +14,7 @@ import { getServiceMachineId } from 'vs/platform/serviceMachineId/common/service
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { isWeb } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
-import { getTelemetryLevel, supportsTelemetryLogging } from 'vs/platform/telemetry/common/telemetryUtils';
+import { getTelemetryLevel, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 
@@ -52,7 +52,7 @@ class ExtensionResourceLoaderService implements IExtensionResourceLoaderService 
 				'X-Client-Name': `${this._productService.applicationName}${isWeb ? '-web' : ''}`,
 				'X-Client-Version': this._productService.version
 			};
-			if (supportsTelemetryLogging(this._productService, this._environmentService) && getTelemetryLevel(this._configurationService) === TelemetryLevel.USAGE) {
+			if (supportsTelemetry(this._productService, this._environmentService) && getTelemetryLevel(this._configurationService) === TelemetryLevel.USAGE) {
 				requestInit.headers['X-Machine-Id'] = machineId;
 			}
 			if (this._productService.commit) {

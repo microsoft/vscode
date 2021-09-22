@@ -11,7 +11,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { getTelemetryLevel, supportsTelemetryLogging } from 'vs/platform/telemetry/common/telemetryUtils';
+import { getTelemetryLevel, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 
 @extHostNamedCustomer(MainContext.MainThreadTelemetry)
 export class MainThreadTelemetry extends Disposable implements MainThreadTelemetryShape {
@@ -30,7 +30,7 @@ export class MainThreadTelemetry extends Disposable implements MainThreadTelemet
 
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTelemetry);
 
-		if (supportsTelemetryLogging(this._productService, this._environmenService)) {
+		if (supportsTelemetry(this._productService, this._environmenService)) {
 			this._register(this._configurationService.onDidChangeConfiguration(e => {
 				if (e.affectedKeys.includes(TELEMETRY_SETTING_ID)) {
 					this._proxy.$onDidChangeTelemetryEnabled(this.telemetryEnabled);
@@ -42,7 +42,7 @@ export class MainThreadTelemetry extends Disposable implements MainThreadTelemet
 	}
 
 	private get telemetryEnabled(): boolean {
-		if (!supportsTelemetryLogging(this._productService, this._environmenService)) {
+		if (!supportsTelemetry(this._productService, this._environmenService)) {
 			return false;
 		}
 

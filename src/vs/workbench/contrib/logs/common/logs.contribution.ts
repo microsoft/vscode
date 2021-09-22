@@ -22,7 +22,7 @@ import { isWeb } from 'vs/base/common/platform';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { LogsDataCleaner } from 'vs/workbench/contrib/logs/common/logsDataCleaner';
 import { IOutputService } from 'vs/workbench/contrib/output/common/output';
-import { supportsTelemetryLogging } from 'vs/platform/telemetry/common/telemetryUtils';
+import { supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { timeout } from 'vs/base/common/async';
 import { getErrorMessage } from 'vs/base/common/errors';
@@ -53,7 +53,7 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 		this.registerLogChannel(Constants.rendererLogChannelId, nls.localize('rendererLog', "Window"), this.environmentService.logFile);
 
 		const registerTelemetryChannel = () => {
-			if (supportsTelemetryLogging(this.productService, this.environmentService) && this.logService.getLevel() === LogLevel.Trace) {
+			if (supportsTelemetry(this.productService, this.environmentService) && this.logService.getLevel() === LogLevel.Trace) {
 				this.registerLogChannel(Constants.telemetryLogChannelId, nls.localize('telemetryLog', "Telemetry"), this.environmentService.telemetryLogResource);
 				return true;
 			}
