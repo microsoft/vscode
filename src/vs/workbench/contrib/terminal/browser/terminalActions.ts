@@ -1857,7 +1857,7 @@ export function registerTerminalActions() {
 				title: { value: localize('workbench.action.terminal.sizeToContentWidth', "Toggle Size to Content Width"), original: 'Toggle Size to Content Width' },
 				f1: true,
 				category,
-				precondition: ContextKeyExpr.and(TerminalContextKeys.processSupported, TerminalContextKeys.isOpen) && ContextKeyExpr.not('terminalHasFixedWidth'),
+				precondition: ContextKeyExpr.and(TerminalContextKeys.processSupported, TerminalContextKeys.isOpen),
 				keybinding: {
 					primary: KeyMod.Alt | KeyCode.KEY_Z,
 					weight: KeybindingWeight.WorkbenchContrib
@@ -1875,39 +1875,7 @@ export function registerTerminalActions() {
 				title: { value: localize('workbench.action.terminal.sizeToContentWidthInstance', "Toggle Size to Content Width"), original: 'Toggle Size to Content Width' },
 				f1: false,
 				category,
-				precondition: ContextKeyExpr.and(TerminalContextKeys.processSupported, TerminalContextKeys.focus) && ContextKeyExpr.not('terminalHasFixedWidth')
-			});
-		}
-		async run(accessor: ServicesAccessor) {
-			return getSelectedInstances(accessor)?.[0].toggleSizeToContentWidth();
-		}
-	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.ResetTerminalDimensions,
-				title: { value: localize('workbench.action.terminal.resetTerminalDimensions', "Reset Terminal Dimensions"), original: 'Reset Terminal Dimensions' },
-				f1: true,
-				category,
-				precondition: ContextKeyExpr.and(TerminalContextKeys.processSupported, TerminalContextKeys.isOpen, TerminalContextKeys.terminalHasFixedWidth),
-				keybinding: {
-					primary: KeyMod.Alt | KeyCode.KEY_Z,
-					weight: KeybindingWeight.WorkbenchContrib
-				}
-			});
-		}
-		async run(accessor: ServicesAccessor) {
-			await accessor.get(ITerminalService).doWithActiveInstance(t => t.toggleSizeToContentWidth());
-		}
-	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.ResetTerminalDimensionsInstance,
-				title: { value: localize('workbench.action.terminal.resetTerminalDimensionsInstance', "Reset Terminal Dimensions"), original: 'Reset Terminal Dimensions' },
-				f1: false,
-				category,
-				precondition: ContextKeyExpr.and(TerminalContextKeys.processSupported, TerminalContextKeys.focus, TerminalContextKeys.terminalHasFixedWidth)
+				precondition: ContextKeyExpr.and(TerminalContextKeys.processSupported, TerminalContextKeys.focus)
 			});
 		}
 		async run(accessor: ServicesAccessor) {
