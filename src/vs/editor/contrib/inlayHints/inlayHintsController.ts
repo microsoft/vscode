@@ -131,7 +131,9 @@ export class InlayHintsController implements IEditorContribution {
 			const ranges = this._getHintsRanges();
 			const result = await getInlayHints(model, ranges, cts.token);
 			scheduler.delay = this._getInlayHintsDelays.update(model, Date.now() - t1);
-
+			if (cts.token.isCancellationRequested) {
+				return;
+			}
 			this._updateHintsDecorators(ranges, result);
 			this._cache.set(model, Array.from(this._decorations.values()).map(obj => obj.hint));
 
