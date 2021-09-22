@@ -51,7 +51,7 @@ sync() {
 	git fetch upstream
 	git checkout $local_branch
 	echo "Rebasing $local_branch branch onto $upstream_branch from upstream"
-	git rebase --onto=$upstream_branch $(get_base_commit)^ $local_branch
+	git rebase --onto=$upstream_branch $(get_base_commit)~ $local_branch
 	if [[ $? -ne 0 ]]; then
 		echo "There are merge conflicts doing the rebase."
 		echo "Please resolve them or abort the rebase."
