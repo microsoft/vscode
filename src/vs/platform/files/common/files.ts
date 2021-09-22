@@ -1069,6 +1069,7 @@ export interface IFilesConfiguration {
 		associations: { [filepattern: string]: string };
 		exclude: IExpression;
 		watcherExclude: { [filepattern: string]: boolean };
+		watcherInclude: string[];
 		encoding: string;
 		autoGuessEncoding: boolean;
 		defaultLanguage: string;
