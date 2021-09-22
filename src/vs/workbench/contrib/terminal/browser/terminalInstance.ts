@@ -1040,8 +1040,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (this._wrapperElement.xterm) {
 				this._wrapperElement.xterm = undefined;
 			}
-			if (this._wrapperElement.parentElement && this._container) {
-				this._container.removeChild(this._wrapperElement);
+			if (this._scrollable) {
+				this._scrollable.dispose();
+				this._scrollable = undefined;
 			}
 		}
 		if (this._xterm) {
