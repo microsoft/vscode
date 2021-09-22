@@ -2333,8 +2333,8 @@ export class TerminalLabelComputer extends Disposable {
 		if (split1.length !== split2.length) {
 			return false;
 		}
-		for (let i = 0; i < path1.length; i++) {
-			if (path1[i] !== path2[i]) {
+		for (let i = 0; i < split1.length; i++) {
+			if (split1[i] !== split2[i]) {
 				return false;
 			}
 		}
