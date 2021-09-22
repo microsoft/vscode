@@ -67,6 +67,11 @@ export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerE
 					description: nls.localize('vscode.extension.contributes.debuggers.configurationAttributes', "JSON schema configurations for validating \'launch.json\'."),
 					type: 'object'
 				},
+				when: {
+					description: nls.localize('vscode.extension.contributes.debuggers.when', "Condition which must be true to enable this type of debugger."),
+					type: 'string',
+					default: ''
+				},
 				windows: {
 					description: nls.localize('vscode.extension.contributes.debuggers.windows', "Windows specific settings."),
 					type: 'object',
