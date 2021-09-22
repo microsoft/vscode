@@ -36,7 +36,7 @@ import { FindInFilesCommand, IFindInFilesArgs } from 'vs/workbench/contrib/searc
 import { Direction, ICreateTerminalOptions, IRemoteTerminalService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalQuickAccess';
 import { ILocalTerminalService, IRemoteTerminalAttachTarget, ITerminalConfigHelper, TerminalCommandId, TERMINAL_ACTION_CATEGORY } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalContextKeys, TerminalContextKeyStrings } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
+import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { createProfileSchemaEnums } from 'vs/platform/terminal/common/terminalProfiles';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
@@ -1857,7 +1857,7 @@ export function registerTerminalActions() {
 				title: { value: localize('workbench.action.terminal.sizeToContentWidth', "Toggle Size to Content Width"), original: 'Toggle Size to Content Width' },
 				f1: true,
 				category,
-				precondition: ContextKeyExpr.and(TerminalContextKeys.processSupported, TerminalContextKeys.tabsSingularSelection),
+				precondition: ContextKeyExpr.and(TerminalContextKeys.processSupported, TerminalContextKeys.isOpen),
 				keybinding: {
 					primary: KeyMod.Alt | KeyCode.KEY_Z,
 					weight: KeybindingWeight.WorkbenchContrib
@@ -1875,12 +1875,7 @@ export function registerTerminalActions() {
 				title: { value: localize('workbench.action.terminal.sizeToContentWidthInstance', "Toggle Size to Content Width"), original: 'Toggle Size to Content Width' },
 				f1: false,
 				category,
-				precondition: ContextKeyExpr.and(TerminalContextKeys.processSupported, TerminalContextKeys.tabsSingularSelection),
-				// toggled: TerminalContextKeys.terminalHasFixedWidth,
-				keybinding: {
-					primary: KeyMod.Alt | KeyCode.KEY_Z,
-					weight: KeybindingWeight.WorkbenchContrib
-				}
+				precondition: ContextKeyExpr.and(TerminalContextKeys.processSupported, TerminalContextKeys.focus)
 			});
 		}
 		async run(accessor: ServicesAccessor) {
