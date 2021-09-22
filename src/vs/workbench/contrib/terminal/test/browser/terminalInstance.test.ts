@@ -39,7 +39,7 @@ const root2 = '/foo/root2';
 const ROOT_2 = fixPath(root2);
 const emptyRoot = '/foo';
 const ROOT_EMPTY = fixPath(emptyRoot);
-suite('Workbench - TerminalInstance', () => {
+suite.only('Workbench - TerminalInstance', () => {
 	suite('refreshLabel', () => {
 		let configurationService: TestConfigurationService;
 		let terminalLabelComputer: TerminalLabelComputer;
@@ -184,19 +184,18 @@ suite('Workbench - TerminalInstance', () => {
 				strictEqual(terminalLabelComputer.description, 'root2');
 			}
 		});
-		//TODO: enable and test userHome
-		test.skip('should hide cwdFolder in empty workspaces when cwd matches the workspace\'s default cwd ($HOME or $HOMEDRIVE$HOMEPATH)', async () => {
-			configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' ~ ', title: '${process}${separator}${cwdFolder}', description: '${cwdFolder}' } }, cwd: ROOT_1 } });
+		test.only('should hide cwdFolder in single folder workspaces when cwd matches the workspace\'s default cwd even when slashes differ', async () => {
+			configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' ~ ', title: '${process}${separator}${cwdFolder}', description: '${cwdFolder}' } }, cwd: '\\foo\\root1' } });
 			configHelper = new TerminalConfigHelper(configurationService, null!, null!, null!, null!, null!);
-			terminalLabelComputer = new TerminalLabelComputer(configHelper, createInstance({ capabilities, processName: 'process', workspaceFolder: 'folder', cwd: ROOT_EMPTY }), emptyContextService);
+			terminalLabelComputer = new TerminalLabelComputer(configHelper, createInstance({ capabilities, processName: 'process', workspaceFolder: 'folder', cwd: ROOT_1 }), mockContextService);
 			terminalLabelComputer.refreshLabel();
 			strictEqual(terminalLabelComputer.title, 'process');
 			strictEqual(terminalLabelComputer.description, '');
 			if (!isWindows) {
-				terminalLabelComputer = new TerminalLabelComputer(configHelper, createInstance({ capabilities, processName: 'process', workspaceFolder: 'folder', cwd: ROOT_1 }), emptyContextService);
+				terminalLabelComputer = new TerminalLabelComputer(configHelper, createInstance({ capabilities, processName: 'process', workspaceFolder: 'folder', cwd: ROOT_2 }), mockContextService);
 				terminalLabelComputer.refreshLabel();
 				strictEqual(terminalLabelComputer.title, 'process');
-				strictEqual(terminalLabelComputer.description, ROOT_1);
+				strictEqual(terminalLabelComputer.description, ROOT_2);
 			}
 		});
 	});
