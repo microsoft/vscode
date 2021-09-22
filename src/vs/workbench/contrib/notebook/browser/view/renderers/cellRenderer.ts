@@ -941,7 +941,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			const bottomToolbarDimensions = this.notebookEditor.notebookOptions.computeBottomToolbarDimensions(this.notebookEditor.textModel?.viewType);
 			templateData.focusIndicatorLeft.setHeight(element.layoutInfo.indicatorHeight);
 			templateData.focusIndicatorRight.setHeight(element.layoutInfo.indicatorHeight);
-			templateData.focusIndicatorBottom.setTop(element.layoutInfo.totalHeight - bottomToolbarDimensions.bottomToolbarGap - layoutInfo.cellBottomMargin);
+			templateData.focusIndicatorBottom.domNode.style.transform = `translateY(${element.layoutInfo.totalHeight - bottomToolbarDimensions.bottomToolbarGap - layoutInfo.cellBottomMargin}px)`;
 			templateData.outputContainer.setTop(element.layoutInfo.outputContainerOffset);
 			templateData.outputShowMoreContainer.setTop(element.layoutInfo.outputShowMoreContainerOffset);
 			templateData.dragHandle.setHeight(element.layoutInfo.totalHeight - bottomToolbarDimensions.bottomToolbarGap);
