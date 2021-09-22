@@ -68,7 +68,7 @@ export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerE
 					type: 'object'
 				},
 				when: {
-					description: nls.localize('vscode.extension.contributes.debuggers.when', "Condition which must be true to enable this type of debugger."),
+					description: nls.localize('vscode.extension.contributes.debuggers.when', "Condition which must be true to enable this type of debugger. Consider using 'shellExecutionSupported', 'virtualWorkspace', 'resourceScheme' or an extension defined context key as appropriate for this."),
 					type: 'string',
 					default: ''
 				},
