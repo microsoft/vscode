@@ -22,11 +22,11 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IProductService } from 'vs/platform/product/common/productService';
 
 interface IConfiguration extends IWindowsConfiguration {
-	update: { mode: string; };
-	debug: { console: { wordWrap: boolean } };
-	editor: { accessibilitySupport: 'on' | 'off' | 'auto' };
-	security: { workspace: { trust: { enabled: boolean } } };
-	files: { legacyWatcher: boolean };
+	update?: { mode?: string; };
+	debug?: { console?: { wordWrap?: boolean } };
+	editor?: { accessibilitySupport?: 'on' | 'off' | 'auto' };
+	security?: { workspace?: { trust?: { enabled?: boolean } } };
+	files?: { legacyWatcher?: boolean };
 }
 
 export class SettingsChangeRelauncher extends Disposable implements IWorkbenchContribution {
@@ -96,7 +96,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 			}
 
 			// Workspace trust
-			if (typeof config.security?.workspace.trust.enabled === 'boolean' && config.security?.workspace.trust.enabled !== this.workspaceTrustEnabled) {
+			if (typeof config?.security?.workspace?.trust?.enabled === 'boolean' && config.security?.workspace.trust.enabled !== this.workspaceTrustEnabled) {
 				this.workspaceTrustEnabled = config.security.workspace.trust.enabled;
 				changed = true;
 			}
