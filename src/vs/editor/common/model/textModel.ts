@@ -3288,7 +3288,7 @@ function indentOfLine(line: string): number {
 	return indent;
 }
 
-class BracketPairGuidesClassNames {
+export class BracketPairGuidesClassNames {
 	public readonly activeClassName = 'indent-active';
 
 	getInlineClassNameOfLevel(level: number): string {
@@ -3297,30 +3297,6 @@ class BracketPairGuidesClassNames {
 		return `bracket-indent-guide lvl-${level % 30}`;
 	}
 }
-
-registerThemingParticipant((theme, collector) => {
-	const colors = [
-		editorBracketHighlightingForeground1,
-		editorBracketHighlightingForeground2,
-		editorBracketHighlightingForeground3,
-		editorBracketHighlightingForeground4,
-		editorBracketHighlightingForeground5,
-		editorBracketHighlightingForeground6
-	];
-	const colorProvider = new BracketPairGuidesClassNames();
-
-	let colorValues = colors
-		.map(c => theme.getColor(c))
-		.filter((c): c is Color => !!c)
-		.filter(c => !c.isTransparent());
-
-	for (let level = 0; level < 30; level++) {
-		const color = colorValues[level % colorValues.length];
-		collector.addRule(`.monaco-editor .${colorProvider.getInlineClassNameOfLevel(level).replace(/ /g, '.')} { opacity: 0.3; box-shadow: 1px 0 0 0 ${color} inset; }`);
-	}
-
-	collector.addRule(`.monaco-editor .${colorProvider.activeClassName} { opacity: 1 !important; }`);
-});
 
 //#region Decorations
 

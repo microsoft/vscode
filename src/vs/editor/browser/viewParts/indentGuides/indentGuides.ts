@@ -5,7 +5,7 @@
 
 import 'vs/css!./indentGuides';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
-import { editorActiveIndentGuides, editorIndentGuides } from 'vs/editor/common/view/editorColorRegistry';
+import { editorActiveIndentGuides, editorBracketHighlightingForeground1, editorBracketHighlightingForeground2, editorBracketHighlightingForeground3, editorBracketHighlightingForeground4, editorBracketHighlightingForeground5, editorBracketHighlightingForeground6, editorIndentGuides } from 'vs/editor/common/view/editorColorRegistry';
 import { RenderingContext } from 'vs/editor/common/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
@@ -14,6 +14,8 @@ import { EditorOption, InternalGuidesOptions } from 'vs/editor/common/config/edi
 import { Position } from 'vs/editor/common/core/position';
 import { IndentGuide } from 'vs/editor/common/model';
 import { ArrayQueue } from 'vs/base/common/arrays';
+import { BracketPairGuidesClassNames } from 'vs/editor/common/model/textModel';
+import { Color } from 'vs/base/common/color';
 
 export class IndentGuidesOverlay extends DynamicViewOverlay {
 
@@ -225,4 +227,26 @@ registerThemingParticipant((theme, collector) => {
 	if (editorActiveIndentGuidesColor) {
 		collector.addRule(`.monaco-editor .lines-content .core-guide-indent-active { box-shadow: 1px 0 0 0 ${editorActiveIndentGuidesColor} inset; }`);
 	}
+
+	const colors = [
+		editorBracketHighlightingForeground1,
+		editorBracketHighlightingForeground2,
+		editorBracketHighlightingForeground3,
+		editorBracketHighlightingForeground4,
+		editorBracketHighlightingForeground5,
+		editorBracketHighlightingForeground6
+	];
+	const colorProvider = new BracketPairGuidesClassNames();
+
+	let colorValues = colors
+		.map(c => theme.getColor(c))
+		.filter((c): c is Color => !!c)
+		.filter(c => !c.isTransparent());
+
+	for (let level = 0; level < 30; level++) {
+		const color = colorValues[level % colorValues.length];
+		collector.addRule(`.monaco-editor .${colorProvider.getInlineClassNameOfLevel(level).replace(/ /g, '.')} { opacity: 0.3; box-shadow: 1px 0 0 0 ${color} inset; }`);
+	}
+
+	collector.addRule(`.monaco-editor .${colorProvider.activeClassName} { opacity: 1 !important; }`);
 });
