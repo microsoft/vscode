@@ -3,56 +3,56 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { Event, Emitter } from 'vs/base/common/event';
-import { URI, URI as uri } from 'vs/base/common/uri';
-import { distinct } from 'vs/base/common/arrays';
-import * as errors from 'vs/base/common/errors';
-import severity from 'vs/base/common/severity';
 import * as aria from 'vs/base/browser/ui/aria/aria';
-import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
-import { DebugModel, FunctionBreakpoint, Breakpoint, DataBreakpoint, InstructionBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
-import { ViewModel } from 'vs/workbench/contrib/debug/common/debugViewModel';
-import { ConfigurationManager } from 'vs/workbench/contrib/debug/browser/debugConfigurationManager';
-import { VIEWLET_ID as EXPLORER_VIEWLET_ID } from 'vs/workbench/contrib/files/common/files';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IAction, Action } from 'vs/base/common/actions';
-import { deepClone, equals } from 'vs/base/common/objects';
-import { DebugSession } from 'vs/workbench/contrib/debug/browser/debugSession';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { IDebugService, State, IDebugSession, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_STATE, CONTEXT_IN_DEBUG_MODE, IThread, IDebugConfiguration, VIEWLET_ID, IConfig, ILaunch, IViewModel, IConfigurationManager, IDebugModel, IEnablement, IBreakpoint, IBreakpointData, ICompound, IStackFrame, getStateLabel, IDebugSessionOptions, CONTEXT_DEBUG_UX, REPL_VIEW_ID, CONTEXT_BREAKPOINTS_EXIST, IGlobalConfig, CALLSTACK_VIEW_ID, IAdapterManager, IExceptionBreakpoint, CONTEXT_DISASSEMBLY_VIEW_FOCUS } from 'vs/workbench/contrib/debug/common/debug';
-import { getExtensionHostDebugSession, saveAllBeforeDebugStart } from 'vs/workbench/contrib/debug/common/debugUtils';
+import { Action, IAction } from 'vs/base/common/actions';
+import { distinct } from 'vs/base/common/arrays';
 import { raceTimeout, RunOnceScheduler } from 'vs/base/common/async';
-import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
-import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { TaskRunResult, DebugTaskRunner } from 'vs/workbench/contrib/debug/browser/debugTaskRunner';
-import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
-import { IViewsService, IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
+import * as errors from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { deepClone, equals } from 'vs/base/common/objects';
+import severity from 'vs/base/common/severity';
+import { URI, URI as uri } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
+import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ITextModel } from 'vs/editor/common/model';
+import * as nls from 'vs/nls';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
+import { AdapterManager } from 'vs/workbench/contrib/debug/browser/debugAdapterManager';
+import { DEBUG_CONFIGURE_COMMAND_ID, DEBUG_CONFIGURE_LABEL } from 'vs/workbench/contrib/debug/browser/debugCommands';
+import { ConfigurationManager } from 'vs/workbench/contrib/debug/browser/debugConfigurationManager';
+import { DebugSession } from 'vs/workbench/contrib/debug/browser/debugSession';
+import { DebugTaskRunner, TaskRunResult } from 'vs/workbench/contrib/debug/browser/debugTaskRunner';
+import { CALLSTACK_VIEW_ID, CONTEXT_BREAKPOINTS_EXIST, CONTEXT_DEBUG_STATE, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_UX, CONTEXT_DISASSEMBLY_VIEW_FOCUS, CONTEXT_IN_DEBUG_MODE, getStateLabel, IAdapterManager, IBreakpoint, IBreakpointData, ICompound, IConfig, IConfigurationManager, IDebugConfiguration, IDebugModel, IDebugService, IDebugSession, IDebugSessionOptions, IEnablement, IExceptionBreakpoint, IGlobalConfig, ILaunch, IStackFrame, IThread, IViewModel, REPL_VIEW_ID, State, VIEWLET_ID } from 'vs/workbench/contrib/debug/common/debug';
+import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
+import { Debugger } from 'vs/workbench/contrib/debug/common/debugger';
+import { Breakpoint, DataBreakpoint, DebugModel, FunctionBreakpoint, InstructionBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
 import { DebugStorage } from 'vs/workbench/contrib/debug/common/debugStorage';
 import { DebugTelemetry } from 'vs/workbench/contrib/debug/common/debugTelemetry';
-import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { AdapterManager } from 'vs/workbench/contrib/debug/browser/debugAdapterManager';
-import { ITextModel } from 'vs/editor/common/model';
-import { DEBUG_CONFIGURE_COMMAND_ID, DEBUG_CONFIGURE_LABEL } from 'vs/workbench/contrib/debug/browser/debugCommands';
-import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
-import { Debugger } from 'vs/workbench/contrib/debug/common/debugger';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { getExtensionHostDebugSession, saveAllBeforeDebugStart } from 'vs/workbench/contrib/debug/common/debugUtils';
+import { ViewModel } from 'vs/workbench/contrib/debug/common/debugViewModel';
 import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { VIEWLET_ID as EXPLORER_VIEWLET_ID } from 'vs/workbench/contrib/files/common/files';
+import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export class DebugService implements IDebugService {
 	declare readonly _serviceBrand: undefined;
@@ -68,7 +68,7 @@ export class DebugService implements IDebugService {
 	private taskRunner: DebugTaskRunner;
 	private configurationManager: ConfigurationManager;
 	private adapterManager: AdapterManager;
-	private toDispose: IDisposable[];
+	private disposables = new DisposableStore();
 	private debugType!: IContextKey<string>;
 	private debugState!: IContextKey<string>;
 	private inDebugMode!: IContextKey<boolean>;
@@ -105,8 +105,6 @@ export class DebugService implements IDebugService {
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
-		this.toDispose = [];
-
 		this.breakpointsToSendOnResourceSaved = new Set<URI>();
 
 		this._onDidChangeState = new Emitter<State>();
@@ -115,8 +113,9 @@ export class DebugService implements IDebugService {
 		this._onDidEndSession = new Emitter<IDebugSession>();
 
 		this.adapterManager = this.instantiationService.createInstance(AdapterManager);
+		this.disposables.add(this.adapterManager);
 		this.configurationManager = this.instantiationService.createInstance(ConfigurationManager, this.adapterManager);
-		this.toDispose.push(this.configurationManager);
+		this.disposables.add(this.configurationManager);
 		this.debugStorage = this.instantiationService.createInstance(DebugStorage);
 
 		contextKeyService.bufferChangeEvents(() => {
@@ -139,10 +138,10 @@ export class DebugService implements IDebugService {
 		this.viewModel = new ViewModel(contextKeyService);
 		this.taskRunner = this.instantiationService.createInstance(DebugTaskRunner);
 
-		this.toDispose.push(this.fileService.onDidFilesChange(e => this.onFileChanges(e)));
-		this.toDispose.push(this.lifecycleService.onWillShutdown(this.dispose, this));
+		this.disposables.add(this.fileService.onDidFilesChange(e => this.onFileChanges(e)));
+		this.disposables.add(this.lifecycleService.onWillShutdown(this.dispose, this));
 
-		this.toDispose.push(this.extensionHostDebugService.onAttachSession(event => {
+		this.disposables.add(this.extensionHostDebugService.onAttachSession(event => {
 			const session = this.model.getSession(event.sessionId, true);
 			if (session) {
 				// EH was started in debug mode -> attach to it
@@ -152,25 +151,25 @@ export class DebugService implements IDebugService {
 				this.launchOrAttachToSession(session);
 			}
 		}));
-		this.toDispose.push(this.extensionHostDebugService.onTerminateSession(event => {
+		this.disposables.add(this.extensionHostDebugService.onTerminateSession(event => {
 			const session = this.model.getSession(event.sessionId);
 			if (session && session.subId === event.subId) {
 				session.disconnect();
 			}
 		}));
 
-		this.toDispose.push(this.viewModel.onDidFocusStackFrame(() => {
+		this.disposables.add(this.viewModel.onDidFocusStackFrame(() => {
 			this.onStateChange();
 		}));
-		this.toDispose.push(this.viewModel.onDidFocusSession(() => {
+		this.disposables.add(this.viewModel.onDidFocusSession(() => {
 			this.onStateChange();
 		}));
-		this.toDispose.push(Event.any(this.adapterManager.onDidRegisterDebugger, this.configurationManager.onDidSelectConfiguration)(() => {
+		this.disposables.add(Event.any(this.adapterManager.onDidRegisterDebugger, this.configurationManager.onDidSelectConfiguration)(() => {
 			const debugUxValue = (this.state !== State.Inactive || (this.configurationManager.getAllConfigurations().length > 0 && this.adapterManager.hasEnabledDebuggers())) ? 'default' : 'simple';
 			this.debugUx.set(debugUxValue);
 			this.debugStorage.storeDebugUxState(debugUxValue);
 		}));
-		this.toDispose.push(this.model.onDidChangeCallStack(() => {
+		this.disposables.add(this.model.onDidChangeCallStack(() => {
 			const numberOfSessions = this.model.getSessions().filter(s => !s.parentSession).length;
 			if (this.activity) {
 				this.activity.dispose();
@@ -182,9 +181,9 @@ export class DebugService implements IDebugService {
 				}
 			}
 		}));
-		this.toDispose.push(this.model.onDidChangeBreakpoints(() => setBreakpointsExistContext()));
+		this.disposables.add(this.model.onDidChangeBreakpoints(() => setBreakpointsExistContext()));
 
-		this.toDispose.push(editorService.onDidActiveEditorChange(() => {
+		this.disposables.add(editorService.onDidActiveEditorChange(() => {
 			this.contextKeyService.bufferChangeEvents(() => {
 				if (editorService.activeEditor === DisassemblyViewInput.instance) {
 					this.disassemblyViewFocus.set(true);
@@ -216,7 +215,7 @@ export class DebugService implements IDebugService {
 	}
 
 	dispose(): void {
-		this.toDispose = dispose(this.toDispose);
+		this.disposables.dispose();
 	}
 
 	//---- state management
@@ -627,7 +626,7 @@ export class DebugService implements IDebugService {
 				this.viewModel.setFocus(undefined, this.viewModel.focusedThread, session, false);
 			}
 		}, 200);
-		this.toDispose.push(session.onDidChangeState(() => {
+		this.disposables.add(session.onDidChangeState(() => {
 			if (session.state === State.Running && this.viewModel.focusedSession === session) {
 				sessionRunningScheduler.schedule();
 			}
@@ -636,7 +635,7 @@ export class DebugService implements IDebugService {
 			}
 		}));
 
-		this.toDispose.push(session.onDidEndAdapter(async adapterExitEvent => {
+		this.disposables.add(session.onDidEndAdapter(async adapterExitEvent => {
 
 			if (adapterExitEvent) {
 				if (adapterExitEvent.error) {
