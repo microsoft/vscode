@@ -1942,7 +1942,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 						width: this._xterm.element?.clientWidth,
 						scrollWidth: this._fixedCols * this._configHelper.getFont(this._xtermCore).charWidth! - this._xterm.element!.clientWidth
 					});
-
+				this._scrollable!.getDomNode().style.paddingBottom = '16px';
 				for (let j = this._xterm.buffer.active.viewportY; j < this._xterm.buffer.active.length; j++) {
 					let line = this._xterm.buffer.active.getLine(j);
 					(line as any)._line.isWrapped = false;
