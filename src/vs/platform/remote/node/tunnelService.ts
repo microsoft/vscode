@@ -56,7 +56,7 @@ class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 		this._server.on('error', this._errorListener);
 
 		this.tunnelRemotePort = tunnelRemotePort;
-		this.tunnelRemoteHost = (isLocalhost(tunnelRemoteHost) || isAllInterfaces(tunnelRemoteHost)) ? 'localhost' : tunnelRemoteHost;
+		this.tunnelRemoteHost = tunnelRemoteHost;
 	}
 
 	public override async dispose(): Promise<void> {
@@ -98,7 +98,8 @@ class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 		// pause reading on the socket until we have a chance to forward its data
 		localSocket.pause();
 
-		const protocol = await connectRemoteAgentTunnel(this._options, this.tunnelRemoteHost, this.tunnelRemotePort);
+		const tunnelRemoteHost = (isLocalhost(this.tunnelRemoteHost) || isAllInterfaces(this.tunnelRemoteHost)) ? 'localhost' : this.tunnelRemoteHost;
+		const protocol = await connectRemoteAgentTunnel(this._options, tunnelRemoteHost, this.tunnelRemotePort);
 		const remoteSocket = (<NodeSocket>protocol.getSocket()).socket;
 		const dataChunk = protocol.readEntireBuffer();
 		protocol.dispose();
